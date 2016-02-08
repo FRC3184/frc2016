@@ -1,4 +1,5 @@
 import wpilib
+import subprocess
 from command_based import *
 
 class DriveSubsystem(Subsystem):
@@ -88,6 +89,8 @@ class TeleopCommand(Command):
         self.shooterSubsystem.updateSmartDashboardValues()
 class MyRobot(CommandBasedRobot):
     def robotInit(self):
+        subprocess.Popen("/home/lvuser/grip", shell=True)
+        
         self.subsystems['drive'] = DriveSubsystem()
         self.subsystems['shooter'] = ShooterSubsystem()   
         
