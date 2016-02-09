@@ -56,11 +56,11 @@ class CommandBasedRobot(wpilib.IterativeRobot):
         for cmd in self.newCommands:
             cmd.start()
         self.commands += self.newCommands
-        newCommands = []
+        self.newCommands = []
         for cmd in self.commands:
             cmd.run()
             if cmd.isFinished():
-                unregisterCommand(cmd)
+                self.unregisterCommand(cmd)
 
     def teleopPeriodic(self):
         self.runSchedule()

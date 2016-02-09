@@ -2,6 +2,7 @@ import wpilib
 import subprocess
 from command_based import *
 
+
 class DriveSubsystem(Subsystem):
     def __init__(self):
         super().__init__()
@@ -16,53 +17,60 @@ class DriveSubsystem(Subsystem):
 
     def drive(self, forward, turn):
         self.rdRobotDrive.arcadeDrive(forward, turn)
+
+
 class ShooterSubsystem(Subsystem):
     def __init__(self):
         super().__init__()
 
-        p = .3 # Set these for testing
+        p = .3  # Set these for testing
         i = 0
         d = 0
 
-        self.tShooterL = wpilib.CANTalon(4)        
+        self.tShooterL = wpilib.CANTalon(4)
         self.tShooterL.setFeedbackDevice(wpilib.CANTalon.FeedbackDevice.QuadEncoder)
         self.tShooterL.changeControlMode(wpilib.CANTalon.ControlMode.Speed)
-        
+
         self.tShooterR = wpilib.CANTalon(5)
         self.tShooterR.setFeedbackDevice(wpilib.CANTalon.FeedbackDevice.QuadEncoder)
         self.tShooterR.changeControlMode(wpilib.CANTalon.ControlMode.Speed)
 
         # set pid values
-        self.tShooterL.setP(p)
-        self.tShooterL.setI(i)
-        self.tShooterL.setD(d)
-        self.tShooterR.setP(p)
-        self.tShooterR.setI(i)
-        self.tShooterR.setD(d)
-        
+        self.tShooterL.setPID(p, i, d)
+        self.tShooterR.setPID(p, i, d)
+
         self.tArticulate = wpilib.CANTalon(6)
+
     def updateSmartDashboardValues(self):
         wpilib.SmartDashboard.putDouble("Left Shooter Speed", self.tShooterL.get())
         wpilib.SmartDashboard.putDouble("Right Shooter Speed", self.tShooterR.get())
         wpilib.SmartDashboard.putDouble("Target Shooter Speed", self.tShooterL.getSetpoint())
+
     def setPower(self, power):
-        """Set shooter raw power"""
+        """Set shooter raw power
+        :param power: Raw motor power -1 .. 1
+        """
 
         self.tShooterR.changeControlMode(wpilib.CANTalon.ControlMode.PercentVbus)
         self.tShooterL.changeControlMode(wpilib.CANTalon.ControlMode.PercentVbus)
-        
+
         self.tShooterL.set(power)
         self.tShooterR.set(power)
+
     def setClosedLoopSpeed(self, rpm):
-        """Use talon PID to set shooter speed"""
-        
+        """Use talon PID to set shooter speed
+        :param rpm: The desired shooter RPM
+        """
+
         self.tShooterR.changeControlMode(wpilib.CANTalon.ControlMode.Speed)
         self.tShooterL.changeControlMode(wpilib.CANTalon.ControlMode.Speed)
-            
-        vel = rpm * 1024 / (60 * 100) # Multiply by ticks/rev, divide by seconds/minute, divide by 100 for 1 second -> 10 ms
-            
+
+        vel = rpm * 1024 / (60 * 100)  # Multiply by ticks/rev, divide by seconds/minute, divide by 100 for 1 second -> 10 ms
+
         self.tShooterL.set(vel)
         self.tShooterR.set(vel)
+
+
 class TeleopCommand(Command):
     def __init__(self, subsystems):
         super().__init__()
@@ -74,9 +82,10 @@ class TeleopCommand(Command):
         self.jsLeft = wpilib.Joystick(0)
         self.jsRight = wpilib.Joystick(1)
         self.jsManip = wpilib.Joystick(2)
+
     def run(self):
         spencerPow = 1.0 if (self.jsLeft.getRawButton(1) or self.jsRight.getRawButton(1)) else 0.5
-        
+
         power = self.jsLeft.getY() * spencerPow
         spin = -self.jsRight.getX()
         self.driveSubsystem.drive(power, spin)
@@ -87,15 +96,18 @@ class TeleopCommand(Command):
             self.shooterSubsystem.setPower(0)
 
         self.shooterSubsystem.updateSmartDashboardValues()
+
+
 class MyRobot(CommandBasedRobot):
     def robotInit(self):
         subprocess.Popen("/home/lvuser/grip", shell=True)
-        
+
         self.subsystems['drive'] = DriveSubsystem()
-        self.subsystems['shooter'] = ShooterSubsystem()   
-        
+        self.subsystems['shooter'] = ShooterSubsystem()
+
     def teleopInit(self):
-        self.registerCommand(TeleopCommand(self.subsystems))        
+        self.registerCommand(TeleopCommand(self.subsystems))
+
 
 if __name__ == '__main__':
     wpilib.run(MyRobot)
