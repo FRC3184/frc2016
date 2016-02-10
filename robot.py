@@ -1,5 +1,6 @@
 import wpilib
 import subprocess
+from ITG3200 import ITG3200
 from command_based import *
 
 
@@ -14,10 +15,21 @@ class DriveSubsystem(Subsystem):
         self.rdRobotDrive = wpilib.RobotDrive(tFrontLeft, tRearLeft, tFrontRight, tRearRight)
         self.encRightEncoder = wpilib.Encoder(0, 1)
         self.encLeftEncoder = wpilib.Encoder(2, 3)
+        self.gyro = ITG3200(wpilib.I2C.Port.kOnboard)
+        self.gyro.init()
 
     def drive(self, forward, turn):
         self.rdRobotDrive.arcadeDrive(forward, turn)
-
+        
+    def update(self):
+        self.gyro.update()
+        
+    def updateSmartDashboardValues(self):
+        wpilib.SmartDashboard.putDouble("Left Encoder Count", self.encLeftEncoder.get())
+        wpilib.SmartDashboard.putDouble("Right Encoder Count", self.encRightEncoder.get())
+        wpilib.SmartDashboard.putDouble("Gyro Angle X", self.gyro.getAngleX())
+        wpilib.SmartDashboard.putDouble("Gyro Angle Y", self.gyro.getAngleY())
+        wpilib.SmartDashboard.putDouble("Gyro Angle Z", self.gyro.getAngleZ())
 
 class ShooterSubsystem(Subsystem):
     def __init__(self):
@@ -84,7 +96,9 @@ class TeleopCommand(Command):
         self.jsManip = wpilib.Joystick(2)
 
     def run(self):
-        spencerPow = 1.0 if (self.jsLeft.getRawButton(1) or self.jsRight.getRawButton(1)) else 0.5
+        self.driveSubsystem.update()
+        
+        spencerPow = 1.0 if (self.jsLeft.getRawButton(1) or self.jsRight.getRawButton(1)) else 0.75
 
         power = self.jsLeft.getY() * spencerPow
         spin = -self.jsRight.getX()
@@ -96,6 +110,7 @@ class TeleopCommand(Command):
             self.shooterSubsystem.setPower(0)
 
         self.shooterSubsystem.updateSmartDashboardValues()
+        self.driveSubsystem.updateSmartDashboardValues()
 
 
 class MyRobot(CommandBasedRobot):

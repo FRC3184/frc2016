@@ -24,7 +24,7 @@
 # ===============================================
 
 import wpilib
-import wpilib.interfaces
+from wpilib.interfaces import PIDSource
 
 # Constants
 ADDR_AD0_LOW = 0x68
@@ -37,10 +37,14 @@ RA_GYRO_YOUT_H = 0x1F
 RA_GYRO_YOUT_L = 0x20
 RA_GYRO_ZOUT_H = 0x21
 RA_GYRO_ZOUT_L = 0x22
+RA_TEMP_OUT_H = 0x1B
+RA_TEMP_OUT_L = 0x1C
 RA_WHO_AM_I = 0x00
 RA_DLPF_FS = 0x16
 RA_PWR_MGM = 0x3E
 RA_INT_CFG = 0x17
+RA_SMPLRT_DIV = 0x15
+RA_PWR_MGM = 0x3E
 
 DF_FS_SEL_BIT = 4
 DF_FS_SEL_LENGTH = 2
@@ -50,6 +54,7 @@ INTCFG_RAW_RDY_EN_BIT = 0
 
 PWR_CLK_SEL_BIT = 2
 PWR_CLK_SEL_LENGTH = 3
+PWR_SLEEP_BIT = 6
 
 DEVID_BIT = 6
 DEVID_LENGTH = 6
@@ -63,12 +68,12 @@ def rshift(val, n):
     return (val % 0x100000000) >> n
 
 
-class ITG3200(wpilib.interfaces.PIDSource):
+class ITG3200(PIDSource):
     def __init__(self, port, addr=DEFAULT_ADDR):
         self.i2c = wpilib.I2C(port, addr)
         self.addr = addr
         self.pidAxis = self.Axis.X
-        self.setPIDSourceType(wpilib.interfaces.PIDSource.PIDSourceType.kRate)
+        self.setPIDSourceType(PIDSource.PIDSourceType.kRate)
         self.reset()
 
     def reset(self):
@@ -82,12 +87,16 @@ class ITG3200(wpilib.interfaces.PIDSource):
         :param dt: Delta time in milliseconds
         :return:
         """
-        real_dt = 1000/dt
+        
+        # TODO: Filter out data? Use accel?
+        
+        real_dt = dt/1000 # Turn ms into seconds
 
-        self.angleX += self.getRotationX() * real_dt
-        self.angleY += self.getRotationY() * real_dt
-        self.angleZ += self.getRotationZ() * real_dt
+        self.angleX += self.getRateX() * real_dt
+        self.angleY += self.getRateY() * real_dt
+        self.angleZ += self.getRateZ() * real_dt
 
+    # PID stuff    
     class Axis:
         X = 0
         Y = 1
@@ -103,21 +112,19 @@ class ITG3200(wpilib.interfaces.PIDSource):
         self.pidAxis = axis
 
     def pidGet(self):
-        if self.getPIDSourceType() == wpilib.interfaces.PIDSource.PIDSourceType.kRate:
-            if self.pidAxis == self.Axis.X:
-                return self.getRotationX()
-            if self.pidAxis == self.Axis.Y:
-                return self.getRotationY()
-            if self.pidAxis == self.Axis.Z:
-                return self.getRotationZ()
+        if self.getPIDSourceType() == PIDSource.PIDSourceType.kRate:
+            return self.getRate(self.pidAxis)
         else:
-            if self.pidAxis == self.Axis.X:
-                return self.angleX
-            if self.pidAxis == self.Axis.Y:
-                return self.angleY
-            if self.pidAxis == self.Axis.Z:
-                return self.angleZ
+            return self.getAngle(self.pidAxis)
 
+    # Power on and prepare for general usage.
+    # This will activate the gyroscope, so be sure to adjust the power settings
+    # after you call this method if you want it to enter standby mode, or another
+    # less demanding mode of operation. This also sets the gyroscope to use the
+    # X-axis gyro for a clock source. Note that it doesn't have any delays in the
+    # routine, which means you might want to add ~50ms to be safe if you happen
+    # to need to read gyro data immediately after initialization. The data will
+    # flow in either case, but the first reports may have higher error offsets.
     def init(self):
         if not self.testConnection():
             wpilib.DriverStation.reportError("Could not connect to ITG3200", False)
@@ -125,6 +132,34 @@ class ITG3200(wpilib.interfaces.PIDSource):
         self.setClockSource(CLOCK_PLL_XGYRO)
         self.setIntDeviceReadyEnabled(True)
         self.setIntDataReadyEnabled(True)
+    
+    def getAngleX(self):
+        return self.angleX
+        
+    def getAngleY(self):
+        return self.angleY
+        
+    def getAngleZ(self):
+        return self.angleZ
+        
+    def getAngle(self, axis):
+        if axis == self.Axis.X:
+            return self.getAngleX()
+        if axis == self.Axis.Y:
+            return self.getAngleY()
+        if axis == self.Axis.Z:
+            return self.getAngleZ()
+    
+    def getRate(self, axis):
+        if axis == self.Axis.X:
+            return self.getRateX()
+        if axis == self.Axis.Y:
+            return self.getRateY()
+        if axis == self.Axis.Z:
+            return self.getRateZ()
+        
+    
+    # Gyro Interface
 
     def readShortFromRegister(self, register, count):
         buf = self.i2c.read(register, count)
@@ -135,6 +170,9 @@ class ITG3200(wpilib.interfaces.PIDSource):
         newValue = self.updateByte(rawData[0], bit, numBits, value)
         self.i2c.write(register, newValue)
 
+    def readBit(self, register, bit):
+        return (self.i2c.read(register, bit) & bit) != 0
+    
     def writeBit(self, register, bit, value):
         """
 
@@ -146,6 +184,9 @@ class ITG3200(wpilib.interfaces.PIDSource):
 
     def setFullScaleRange(self, range):
         self.writeBits(RA_DLPF_FS, DF_FS_SEL_BIT, DF_FS_SEL_LENGTH, range)
+        
+    def getFullScaleRange(self):
+        return self.getRegisterBits(RA_DLPF_FS, DF_FS_SEL_BIT, DF_FS_SEL_LENGTH)
 
     def setClockSource(self, source):
         self.writeBits(RA_PWR_MGM, PWR_CLK_SEL_BIT, PWR_CLK_SEL_LENGTH, source)
@@ -156,21 +197,32 @@ class ITG3200(wpilib.interfaces.PIDSource):
     def setIntDataReadyEnabled(self, enabled):
         self.writeBit(RA_INT_CFG, INTCFG_RAW_RDY_EN_BIT, enabled)
 
-    def getRotationX(self):
+    def getRateX(self):
         return self.readShortFromRegister(RA_GYRO_XOUT_H, 2)
 
-    def getRotationY(self):
+    def getRateY(self):
         return self.readShortFromRegister(RA_GYRO_YOUT_H, 2)
 
-    def getRotationZ(self):
+    def getRateZ(self):
         return self.readShortFromRegister(RA_GYRO_ZOUT_H, 2)
+        
+    def getTemperature(self):
+        return self.readShortFromRegister(RA_TEMP_OUT_H, 2)
 
     def testConnection(self):
         return self.getDeviceID() == 0b110100
+    
+    def getSampleRate(self):
+        return self.getRegisterByte(RA_SMPLRT_DIV)
+        
+    def setSampleRate(self, rate):
+        self.i2c.write(RA_PMPLRT_DIV, rate)
 
+    # This register is used to verify the identity of the device
     def getDeviceID(self):
         return self.getRegisterBits(RA_WHO_AM_I, DEVID_BIT, DEVID_LENGTH)
 
+    # Gets the bit mask for the given bit and number of bits
     def getMask(self, bit, numBits):
         newMask = 0
         for i in range(7+1):
@@ -178,6 +230,7 @@ class ITG3200(wpilib.interfaces.PIDSource):
                 newMask += 2**i
         return newMask & 0xFF
 
+    # Get n bits from the byte to form a byte slice
     def getBits(self, bitField, bit, numBits):
         if numBits > 7 or bit > 7 or bit < numBits - 1 or bit < 0 or numBits < 0:
             raise ValueError("Use 8-bit bytes")
@@ -192,6 +245,7 @@ class ITG3200(wpilib.interfaces.PIDSource):
         containingByte = self.getRegisterByte(register)
         return self.getBits(containingByte, bit, numBits)
 
+    # this routine should update the original byte with the new data properly shifted to the correct bit location
     def updateByte(self, original, bit, numBits, value):
         if numBits > 7 or bit > 7 or bit < numBits-1 or bit < 0 or numBits < 7:
             raise ValueError("Use 8-bit bytes")
@@ -201,3 +255,28 @@ class ITG3200(wpilib.interfaces.PIDSource):
         maskedOriginal = (original & mask) & 0xFF
         shiftedValue = (value << (1 + bit - numBits)) & 0xFF
         return (shiftedValue | maskedOriginal) & 0xFF
+    
+    def getSleepEnabled(self):
+        return self.readBit(RA_PWR_MGM, PWR_SLEEP_BIT)
+    
+    def setSleepEnabled(self, enabled):
+        self.writeBit(RA_PWR_MGM, PWR_SLEEP_BIT, enabled)
+        
+    def setStandByXEnabled(self, enabled):
+        self.writeBit(RA_PWR_MGM, PWR_STBY_XG_BIT, enabled)
+    
+    def setStandByYEnabled(self, enabled):
+        self.writeBit(RA_PWR_MGM, PWR_STBY_YG_BIT, enabled)
+    
+    def setStandByZEnabled(self, enabled):
+        self.writeBit(RA_PWR_MGM, PWR_STBY_ZG_BIT, enabled)
+        
+    def getStandByXEnabled(self):
+        return self.readBit(RA_PWR_MGM, PWR_STBY_XG_BIT)
+    
+    def getStandByYEnabled(self):
+        return self.readBit(RA_PWR_MGM, PWR_STBY_YG_BIT)
+    
+    def getStandByZEnabled(self):
+        return self.readBit(RA_PWR_MGM, PWR_STBY_ZG_BIT)
+    
