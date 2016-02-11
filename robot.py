@@ -1,5 +1,5 @@
 import wpilib
-import subprocess
+import subprocess, math
 from ITG3200 import ITG3200
 from command_based import *
 from wpilib.interfaces import PIDOutput, PIDSource
@@ -40,7 +40,7 @@ class DriveSubsystem(Subsystem):
         turnPow = turn
         if wpilib.SmartDashboard.getBoolean("Use Turn PID", True):
             self.driveAngle += turn * wpilib.SmartDashboard.getDouble("Turn Degrees/Second", 360)
-            deltaAngle = self.driveAngle - self.gyro.getAngleY()
+            deltaAngle = self.driveAngle - self.gyro.getAngleZ()
             turnPow = wpilib.SmartDashboard.getDouble("Turn P", 0.3) * deltaAngle
 
         self.rdRobotDrive.arcadeDrive(forward, turnPow)
@@ -149,8 +149,16 @@ class ShooterSubsystem(Subsystem):
         contours = sorted(contours, key=lambda x: x.area, reverse=True)  # Sort contours by area in descending size
         largest = contours[0]                                            # Maybe use width?
 
-        # Finish shooter, get data, and use regression
-        return None
+        # Y is long axis of field
+        # X is short axis of field
+
+        distanceY = 0  # distance to base of tower, use regression to determine from width of contour or centerY? (inches)
+        distanceX = 0  # distance between robot aim plane and center of goal. calculate from centerX and distanceY (in)
+
+        anglePitch = math.degrees(math.atan2(7*12 + 1, distanceY))  # High goal is 7 ft 1 inch above carpet. Increase?
+        angleYawDelta = math.degrees(math.atan2(distanceY, distanceX))
+
+        return anglePitch, angleYawDelta
 
 
 class TeleopCommand(Command):
