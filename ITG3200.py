@@ -44,7 +44,6 @@ RA_DLPF_FS = 0x16
 RA_PWR_MGM = 0x3E
 RA_INT_CFG = 0x17
 RA_SMPLRT_DIV = 0x15
-RA_PWR_MGM = 0x3E
 
 DF_FS_SEL_BIT = 4
 DF_FS_SEL_LENGTH = 2
@@ -55,6 +54,9 @@ INTCFG_RAW_RDY_EN_BIT = 0
 PWR_CLK_SEL_BIT = 2
 PWR_CLK_SEL_LENGTH = 3
 PWR_SLEEP_BIT = 6
+PWR_STBY_XG_BIT = 5
+PWR_STBY_YG_BIT = 4
+PWR_STBY_ZG_BIT = 3
 
 DEVID_BIT = 6
 DEVID_LENGTH = 6
@@ -216,7 +218,7 @@ class ITG3200(PIDSource):
         return self.getRegisterByte(RA_SMPLRT_DIV)
         
     def setSampleRate(self, rate):
-        self.i2c.write(RA_PMPLRT_DIV, rate)
+        self.i2c.write(RA_SMPLRT_DIV, rate)
 
     # This register is used to verify the identity of the device
     def getDeviceID(self):

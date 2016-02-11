@@ -1,9 +1,12 @@
+import math
+import subprocess
 import wpilib
-import subprocess, math
+
+from networktables import *
+from wpilib.interfaces import PIDOutput, PIDSource
+
 from ITG3200 import ITG3200
 from command_based import *
-from wpilib.interfaces import PIDOutput, PIDSource
-from networktables import *
 
 
 class Contour:
@@ -26,6 +29,12 @@ class DriveSubsystem(Subsystem):
         self.rdRobotDrive = wpilib.RobotDrive(tFrontLeft, tRearLeft, tFrontRight, tRearRight)
         self.encRightEncoder = wpilib.Encoder(0, 1)
         self.encLeftEncoder = wpilib.Encoder(2, 3)
+
+        encDPP = 8.5 * math.pi / 1440  # E4T has 1440 PPR
+                                       # Wheels are 8.5in diameter
+        self.encRightEncoder.setDistancePerPulse(encDPP)
+        self.encLeftEncoder.setDistancePerPulse(encDPP)
+
         self.gyro = ITG3200(wpilib.I2C.Port.kOnboard)
         self.gyro.init()
 
@@ -44,7 +53,17 @@ class DriveSubsystem(Subsystem):
             turnPow = wpilib.SmartDashboard.getDouble("Turn P", 0.3) * deltaAngle
 
         self.rdRobotDrive.arcadeDrive(forward, turnPow)
-        
+
+    def getAverageEncoderCount(self):
+        return (self.encLeftEncoder.get() + self.encRightEncoder.get())/2
+
+    def resetEncoderCount(self):
+        self.encRightEncoder.reset()
+        self.encLeftEncoder.reset()
+
+    def resetGyro(self):
+        self.gyro.reset()
+
     def update(self):
         self.gyro.update()  # Accumulate
         
@@ -155,15 +174,17 @@ class ShooterSubsystem(Subsystem):
         distanceY = 0  # distance to base of tower, use regression to determine from width of contour or centerY? (inches)
         distanceX = 0  # distance between robot aim plane and center of goal. calculate from centerX and distanceY (in)
 
-        anglePitch = math.degrees(math.atan2(7*12 + 1, distanceY))  # High goal is 7 ft 1 inch above carpet. Increase?
+        anglePitch = math.degrees(math.atan2(7*12 + 1, distanceY))  # High goal is 7 ft 1 inch above carpet. Increase to center?
         angleYawDelta = math.degrees(math.atan2(distanceY, distanceX))
 
         return anglePitch, angleYawDelta
 
 
 class TeleopCommand(Command):
-    def __init__(self, subsystems):
+    def __init__(self, robot):
         super().__init__()
+
+        subsystems = robot.subsystems
 
         self.require('drive')
         self.require('shooter')
@@ -183,12 +204,37 @@ class TeleopCommand(Command):
         self.driveSubsystem.drive(power, spin)
 
         if self.jsManip.getRawButton(1):
-            self.shooterSubsystem.setPower(self.jsManip.getRawAxis(2))
+            self.shooterSubsystem.setClosedLoopSpeed(wpilib.SmartDashboard.getDouble("Shooter RPM", 5000))  # Fire!
+            # TODO Servo pusher
+        elif self.jsManip.getRawButton(4):
+            self.shooterSubsystem.setClosedLoopSpeed(-1000)  # Eject
         else:
-            self.shooterSubsystem.setPower(0)
+            self.shooterSubsystem.setClosedLoopSpeed(0)
 
         self.shooterSubsystem.updateSmartDashboardValues()
         self.driveSubsystem.updateSmartDashboardValues()
+
+
+class AutoDriveOverDefenseCommand(Command):
+    def __init__(self, robot):
+        super().__init__()
+
+        self.require('drive')
+        self.driveSubystem = robot.subsystems['drive']
+
+        self.isFinished = lambda: False
+
+    def start(self):
+        self.driveSubystem.resetEncoders()
+        self.driveSubystem.resetGyro()  # only reset axis? or face straight
+
+    def run(self):
+        axis = ITG3200.Axis.X
+
+        self.driveSubystem.drive(.5, 0)
+
+        if self.driveSubystem.getAverageEncoderCount() > 5 * 12:  # idk lol 5 ft or TODO timeout and gyro info
+            self.isFinished = lambda: True  # I LOVE PYTHON
 
 
 class MyRobot(CommandBasedRobot):
@@ -199,8 +245,15 @@ class MyRobot(CommandBasedRobot):
         self.subsystems['shooter'] = ShooterSubsystem()
 
     def teleopInit(self):
-        self.registerCommand(TeleopCommand(self.subsystems))
+        self.registerCommand(TeleopCommand(self))
 
+    def autoAimShooter(self):
+        shooter = self.subsystems['shooter']
+        drive = self.subsystems['drive']
+
+        pitch, yawDelta = shooter.calculateShooterParams()
+        drive.driveAngle += yawDelta
+        shooter.setArticulateAngle(pitch)
 
 if __name__ == '__main__':
     wpilib.run(MyRobot)
