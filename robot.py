@@ -101,6 +101,7 @@ class ShooterSubsystem(Subsystem):
 
         self.tArticulate = wpilib.CANTalon(6)
         self.tArticulateEncoder = wpilib.Encoder(4, 5)
+        self.tArticulateEncoder.setDistancePerPulse(1440/360)  # Clicks per degree
         self.articulatePID = wpilib.PIDController(Kp, Ki, Kd, self.tArticulateEncoder,
                                                   type("ArticulateWriter",  # Janky implicit class to hook up PID
                                                        (object, PIDOutput),
@@ -143,8 +144,7 @@ class ShooterSubsystem(Subsystem):
         :param angle: 0 .. 180
         :return:
         """
-        clicks = angle * (1024/360)  # Encoder clicks per degree
-        self.articulatePID.setSetpoint(clicks)
+        self.articulatePID.setSetpoint(angle)
 
     def calculateShooterParams(self):
         gripTable = NetworkTable.getTable("GRIP/myContoursReport")
@@ -211,6 +211,11 @@ class TeleopCommand(Command):
         else:
             self.shooterSubsystem.setClosedLoopSpeed(0)
 
+        if self.jsManip.getRawButton(7):
+            self.shooterSubsystem.setArticulateAngle(0)
+        if self.jsManip.getRawButton(8):
+            self.shooterSubsystem.setArticulateAngle(90)
+            
         self.shooterSubsystem.updateSmartDashboardValues()
         self.driveSubsystem.updateSmartDashboardValues()
 
