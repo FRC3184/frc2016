@@ -24,6 +24,7 @@
 # ===============================================
 
 import wpilib
+import sys
 from wpilib.interfaces import PIDSource
 
 # Constants
@@ -77,6 +78,16 @@ class ITG3200(PIDSource):
         self.pidAxis = self.Axis.X
         self.setPIDSourceType(PIDSource.PIDSourceType.kRate)
         self.reset()
+
+    def readI2C(self, register, count):
+        return self.i2c.read(register, count)
+
+    def writeI2C(self, register, data):
+        try:
+            self.i2c.write(register, data)
+        except:
+            e = sys.exc_info()[0]
+            wpilib.DriverStation.reportError("Unhandled Exception when writing to gyro: {}".format(e), False)
 
     def reset(self):
         self.angleX = 0
@@ -159,30 +170,40 @@ class ITG3200(PIDSource):
             return self.getRateY()
         if axis == self.Axis.Z:
             return self.getRateZ()
-        
-    
+
     # Gyro Interface
 
     def readShortFromRegister(self, register, count):
-        buf = self.i2c.read(register, count)
+        buf = self.readI2C(register, count)
         return (buf[0] << 8) | buf[1]
 
     def writeBits(self, register, bit, numBits, value):
-        rawData = self.i2c.read(register, 1)
+        rawData = self.readI2C(register, 1)
         newValue = self.updateByte(rawData[0], bit, numBits, value)
-        self.i2c.write(register, newValue)
+        self.writeI2C(register, newValue)
 
     def readBit(self, register, bit):
-        return (self.i2c.read(register, bit) & bit) != 0
+        return (self.readI2C(register, bit) & bit) != 0
     
     def writeBit(self, register, bit, value):
         """
 
         :type value: bool
         """
-        buf = self.i2c.read(register, 1)
+        buf = self.readI2C(register, 1)
         newValue = (buf[0] | (1 << bit)) if value else (buf[0] & ~(1 << bit))
-        self.i2c.write(register, newValue)
+        self.writeI2C(register, newValue)
+
+    # this routine should update the original byte with the new data properly shifted to the correct bit location
+    def updateByte(self, original, bit, numBits, value):
+        if numBits > 7 or bit > 7 or bit < numBits-1 or bit < 0 or numBits < 0:
+            raise ValueError("Use 8-bit bytes: numBits: {} bit: {}".format(numBits, bit))
+        if value > 2**numBits:
+            raise ValueError("Value too large")
+        mask = self.getMask(bit, numBits)
+        maskedOriginal = (original & mask) & 0xFF
+        shiftedValue = (value << (1 + bit - numBits)) & 0xFF
+        return (shiftedValue | maskedOriginal) & 0xFF
 
     def setFullScaleRange(self, range):
         self.writeBits(RA_DLPF_FS, DF_FS_SEL_BIT, DF_FS_SEL_LENGTH, range)
@@ -218,7 +239,7 @@ class ITG3200(PIDSource):
         return self.getRegisterByte(RA_SMPLRT_DIV)
         
     def setSampleRate(self, rate):
-        self.i2c.write(RA_SMPLRT_DIV, rate)
+        self.writeI2C(RA_SMPLRT_DIV, rate)
 
     # This register is used to verify the identity of the device
     def getDeviceID(self):
@@ -241,22 +262,11 @@ class ITG3200(PIDSource):
         return rshift(maskedInput, (1 + bit - numBits)) & 0xFF
 
     def getRegisterByte(self, register):
-        return self.i2c.read(register, 1)[0]
+        return self.readI2C(register, 1)[0]
 
     def getRegisterBits(self, register, bit, numBits):
         containingByte = self.getRegisterByte(register)
         return self.getBits(containingByte, bit, numBits)
-
-    # this routine should update the original byte with the new data properly shifted to the correct bit location
-    def updateByte(self, original, bit, numBits, value):
-        if numBits > 7 or bit > 7 or bit < numBits-1 or bit < 0 or numBits < 7:
-            raise ValueError("Use 8-bit bytes")
-        if value > 2**numBits:
-            raise ValueError("Value too large")
-        mask = self.getMask(bit, numBits)
-        maskedOriginal = (original & mask) & 0xFF
-        shiftedValue = (value << (1 + bit - numBits)) & 0xFF
-        return (shiftedValue | maskedOriginal) & 0xFF
     
     def getSleepEnabled(self):
         return self.readBit(RA_PWR_MGM, PWR_SLEEP_BIT)

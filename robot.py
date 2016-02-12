@@ -6,6 +6,7 @@ from networktables import *
 from wpilib.interfaces import PIDOutput, PIDSource
 
 from ITG3200 import ITG3200
+import ITG3200
 from command_based import *
 
 
@@ -35,7 +36,7 @@ class DriveSubsystem(Subsystem):
         self.encRightEncoder.setDistancePerPulse(encDPP)
         self.encLeftEncoder.setDistancePerPulse(encDPP)
 
-        self.gyro = ITG3200(wpilib.I2C.Port.kOnboard)
+        self.gyro = ITG3200.ITG3200(wpilib.I2C.Port.kOnboard)
         self.gyro.init()
 
         self.driveAngle = 0
@@ -104,8 +105,8 @@ class ShooterSubsystem(Subsystem):
         self.tArticulateEncoder.setDistancePerPulse(1440/360)  # Clicks per degree
         self.articulatePID = wpilib.PIDController(Kp, Ki, Kd, self.tArticulateEncoder,
                                                   type("ArticulateWriter",  # Janky implicit class to hook up PID
-                                                       (object, PIDOutput),
-                                                       {"pidWrite",  self.tArticulate.set}))  # Python is so cool
+                                                       (PIDOutput,),
+                                                       {"pidWrite": lambda output: self.tArticulate.set(output)}))  # Python is so cool
         self.articulatePID.setPIDSourceType(PIDSource.PIDSourceType.kDisplacement)
 
     def updateSmartDashboardValues(self):
@@ -246,11 +247,15 @@ class MyRobot(CommandBasedRobot):
     def robotInit(self):
         subprocess.Popen("/home/lvuser/grip", shell=True)  # Start GRIP process
 
+        #accel = wpilib.ADXL345_I2C(wpilib.I2C.Port.kOnboard, wpilib.ADXL345_I2C.Range.k16G)
+        #print(accel.getAcceleration(accel.Axes.kX))
+
         self.subsystems['drive'] = DriveSubsystem()
         self.subsystems['shooter'] = ShooterSubsystem()
 
     def teleopInit(self):
         self.registerCommand(TeleopCommand(self))
+        pass
 
     def autoAimShooter(self):
         shooter = self.subsystems['shooter']
