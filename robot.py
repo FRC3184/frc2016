@@ -38,6 +38,7 @@ class DriveSubsystem(Subsystem):
 
         self.gyro = ITG3200.ITG3200(wpilib.I2C.Port.kOnboard)
         self.gyro.init()
+        self.gyro.calibrate()
 
         self.driveAngle = 0
 
@@ -63,10 +64,7 @@ class DriveSubsystem(Subsystem):
         self.encLeftEncoder.reset()
 
     def resetGyro(self):
-        self.gyro.reset()
-
-    def update(self):
-        self.gyro.update()  # Accumulate
+        self.gyro.resetAngle()
         
     def updateSmartDashboardValues(self):
         wpilib.SmartDashboard.putDouble("Left Encoder Count", self.encLeftEncoder.get())
@@ -196,7 +194,6 @@ class TeleopCommand(Command):
         self.jsManip = wpilib.Joystick(2)
 
     def run(self):
-        self.driveSubsystem.update()
         
         spencerPow = 1.0 if (self.jsLeft.getRawButton(1) or self.jsRight.getRawButton(1)) else 0.75
 
@@ -247,15 +244,15 @@ class MyRobot(CommandBasedRobot):
     def robotInit(self):
         subprocess.Popen("/home/lvuser/grip", shell=True)  # Start GRIP process
 
-        #accel = wpilib.ADXL345_I2C(wpilib.I2C.Port.kOnboard, wpilib.ADXL345_I2C.Range.k16G)
-        #print(accel.getAcceleration(accel.Axes.kX))
+        # self.accel = wpilib.ADXL345_I2C(wpilib.I2C.Port.kOnboard, wpilib.ADXL345_I2C.Range.k16G)
 
         self.subsystems['drive'] = DriveSubsystem()
         self.subsystems['shooter'] = ShooterSubsystem()
 
     def teleopInit(self):
-        self.registerCommand(TeleopCommand(self))
-        pass
+        self.clearCommands()
+        self.teleopCommand = TeleopCommand(self)
+        self.registerCommand(self.teleopCommand)
 
     def autoAimShooter(self):
         shooter = self.subsystems['shooter']

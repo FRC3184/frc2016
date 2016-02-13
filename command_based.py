@@ -66,6 +66,10 @@ class CommandBasedRobot(wpilib.IterativeRobot):
             else:
                 print("Cannot find subsystem \"{}\". This may lead to errors later.".format(requirement))
 
+    def clearCommands(self):
+        for cmd in self.commands:
+            self.unregisterCommand(cmd)
+
     def runSchedule(self):
         for cmd in self.newCommands:
             cmd.start()

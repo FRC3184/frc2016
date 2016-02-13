@@ -26,6 +26,7 @@
 import wpilib
 import sys
 from wpilib.interfaces import PIDSource
+from wpilib._impl.timertask import Timer, TimerTask
 
 # Constants
 ADDR_AD0_LOW = 0x68
@@ -66,18 +67,36 @@ FULLSCALE_2000 = 0x03
 
 CLOCK_PLL_XGYRO = 0x01
 
+GYRO_SENSITIVITY = 823.626830313  # test
+TEMP_SENSITIVITY = 280
+TEMP_OFFSET = -13200
+
+
+class Axis:
+        X = 0
+        Y = 1
+        Z = 2
+
 
 def rshift(val, n):
     return (val % 0x100000000) >> n
+
+# TODO restructure so that each axis is a PIDSource
 
 
 class ITG3200(PIDSource):
     def __init__(self, port, addr=DEFAULT_ADDR):
         self.i2c = wpilib.I2C(port, addr)
         self.addr = addr
-        self.pidAxis = self.Axis.X
+        self.pidAxis = Axis.X
         self.setPIDSourceType(PIDSource.PIDSourceType.kRate)
-        self.reset()
+        self.resetAngle()
+
+        self.centerX = 0
+        self.centerY = 0
+        self.centerZ = 0
+
+        self.intrTask = TimerTask("ITG3200 Integrate", 0.05, self.update)
 
     def readI2C(self, register, count):
         return self.i2c.read(register, count)
@@ -89,12 +108,40 @@ class ITG3200(PIDSource):
             e = sys.exc_info()[0]
             wpilib.DriverStation.reportError("Unhandled Exception when writing to gyro: {}".format(e), False)
 
-    def reset(self):
+    def resetAngle(self):
         self.angleX = 0
         self.angleY = 0
         self.angleZ = 0
 
-    def update(self, dt=20):
+    def calibrate(self, time=5.0, samples=100):
+        """
+        Calibrate
+
+        Watch out, this will actually pause the robot
+        :param samples: The amount of samples to take
+        :param time: The time to calibrate
+        :return:
+        """
+        gathered = 0
+        calX = 0
+        calY = 0
+        calZ = 0
+        while gathered < samples:
+            calX += self.getRateX()
+            calY += self.getRateY()
+            calZ += self.getRateZ()
+
+            gathered += 1
+            Timer.delay(time/samples)
+        calX /= samples
+        calY /= samples
+        calZ /= samples
+
+        self.centerX = calX
+        self.centerY = calY
+        self.centerZ = calZ
+
+    def update(self, dt=50):
         """
 
         :param dt: Delta time in milliseconds
@@ -103,17 +150,13 @@ class ITG3200(PIDSource):
         
         # TODO: Filter out data? Use accel?
         
-        real_dt = dt/1000 # Turn ms into seconds
+        real_dt = dt/1000  # Turn ms into seconds
 
         self.angleX += self.getRateX() * real_dt
         self.angleY += self.getRateY() * real_dt
         self.angleZ += self.getRateZ() * real_dt
 
-    # PID stuff    
-    class Axis:
-        X = 0
-        Y = 1
-        Z = 2
+    # PID stuff
 
     def getPIDSourceType(self):
         return self.pidSourceType
@@ -156,19 +199,19 @@ class ITG3200(PIDSource):
         return self.angleZ
         
     def getAngle(self, axis):
-        if axis == self.Axis.X:
+        if axis == Axis.X:
             return self.getAngleX()
-        if axis == self.Axis.Y:
+        if axis == Axis.Y:
             return self.getAngleY()
-        if axis == self.Axis.Z:
+        if axis == Axis.Z:
             return self.getAngleZ()
     
     def getRate(self, axis):
-        if axis == self.Axis.X:
+        if axis == Axis.X:
             return self.getRateX()
-        if axis == self.Axis.Y:
+        if axis == Axis.Y:
             return self.getRateY()
-        if axis == self.Axis.Z:
+        if axis == Axis.Z:
             return self.getRateZ()
 
     # Gyro Interface
@@ -221,16 +264,16 @@ class ITG3200(PIDSource):
         self.writeBit(RA_INT_CFG, INTCFG_RAW_RDY_EN_BIT, enabled)
 
     def getRateX(self):
-        return self.readShortFromRegister(RA_GYRO_XOUT_H, 2)
+        return (self.readShortFromRegister(RA_GYRO_XOUT_H, 2)/GYRO_SENSITIVITY) - self.centerX
 
     def getRateY(self):
-        return self.readShortFromRegister(RA_GYRO_YOUT_H, 2)
+        return (self.readShortFromRegister(RA_GYRO_YOUT_H, 2)/GYRO_SENSITIVITY) - self.centerY
 
     def getRateZ(self):
-        return self.readShortFromRegister(RA_GYRO_ZOUT_H, 2)
+        return (self.readShortFromRegister(RA_GYRO_ZOUT_H, 2)/GYRO_SENSITIVITY) - self.centerZ
         
     def getTemperature(self):
-        return self.readShortFromRegister(RA_TEMP_OUT_H, 2)
+        return (self.readShortFromRegister(RA_TEMP_OUT_H, 2)/TEMP_SENSITIVITY) + TEMP_OFFSET
 
     def testConnection(self):
         return self.getDeviceID() == 0b110100
@@ -291,4 +334,3 @@ class ITG3200(PIDSource):
     
     def getStandByZEnabled(self):
         return self.readBit(RA_PWR_MGM, PWR_STBY_ZG_BIT)
-    
