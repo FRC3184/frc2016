@@ -98,15 +98,24 @@ class ITG3200(PIDSource):
 
         self.intrTask = TimerTask("ITG3200 Integrate", 0.05, self.update)
 
+        self.enabled = False
+
     def readI2C(self, register, count):
-        return self.i2c.read(register, count)
+        if not self.enabled:
+            return [0]*count
+        try:
+            return self.i2c.read(register, count)
+        except IOError:
+            wpilib.DriverStation.reportError("Error reading", False)
+            return [0]*count
 
     def writeI2C(self, register, data):
+        if not self.enabled:
+            return None
         try:
             self.i2c.write(register, data)
-        except:
-            e = sys.exc_info()[0]
-            wpilib.DriverStation.reportError("Unhandled Exception when writing to gyro: {}".format(e), False)
+        except IOError:
+            wpilib.DriverStation.reportError("Error writing", False)
 
     def resetAngle(self):
         self.angleX = 0
@@ -182,12 +191,20 @@ class ITG3200(PIDSource):
     # to need to read gyro data immediately after initialization. The data will
     # flow in either case, but the first reports may have higher error offsets.
     def init(self):
+        if self.i2c.addressOnly():
+            wpilib.DriverStation.reportError("Could not address", False)
+            self.enabled = False
+            return False
         if not self.testConnection():
             wpilib.DriverStation.reportError("Could not connect to ITG3200", False)
+            self.enabled = False
+            return False
         self.setFullScaleRange(FULLSCALE_2000)
         self.setClockSource(CLOCK_PLL_XGYRO)
         self.setIntDeviceReadyEnabled(True)
         self.setIntDataReadyEnabled(True)
+        self.enabled = True
+        return True
     
     def getAngleX(self):
         return self.angleX

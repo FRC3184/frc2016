@@ -1,6 +1,8 @@
 import math
 import subprocess
 import wpilib
+import time
+import sys
 
 from networktables import *
 from wpilib.interfaces import PIDOutput, PIDSource
@@ -78,23 +80,19 @@ class ShooterSubsystem(Subsystem):
     def __init__(self):
         super().__init__()
 
-        Kp = wpilib.SmartDashboard.getDouble("Shooter P", 0.3)
-        Ki = wpilib.SmartDashboard.getDouble("Shooter I", 0.0)
-        Kd = wpilib.SmartDashboard.getDouble("Shooter D", 0.0)
-
         self.tShooterL = wpilib.CANTalon(4)
-        self.tShooterL.setFeedbackDevice(wpilib.CANTalon.FeedbackDevice.QuadEncoder)
+        self.tShooterL.setFeedbackDevice(wpilib.CANTalon.FeedbackDevice.CtreMagEncoder_Relative)
         self.tShooterL.changeControlMode(wpilib.CANTalon.ControlMode.Speed)
 
         self.tShooterR = wpilib.CANTalon(5)
-        self.tShooterR.setFeedbackDevice(wpilib.CANTalon.FeedbackDevice.QuadEncoder)
+        self.tShooterR.setFeedbackDevice(wpilib.CANTalon.FeedbackDevice.CtreMagEncoder_Relative)
         self.tShooterR.changeControlMode(wpilib.CANTalon.ControlMode.Speed)
 
         # set pid values
-        self.tShooterL.setPID(Kp, Ki, Kd)
-        self.tShooterR.setPID(Kp, Ki, Kd)
+        self.tShooterL.setPID(0, 0, 0)
+        self.tShooterR.setPID(0, 0, 0)
 
-        Kp = wpilib.SmartDashboard.getDouble("Articulate P", 0.3)
+        Kp = wpilib.SmartDashboard.getDouble("Articulate P", 0.01)
         Ki = wpilib.SmartDashboard.getDouble("Articulate I", 0.0)
         Kd = wpilib.SmartDashboard.getDouble("Articulate D", 0.0)
 
@@ -106,11 +104,19 @@ class ShooterSubsystem(Subsystem):
                                                        (PIDOutput,),
                                                        {"pidWrite": lambda output: self.tArticulate.set(output)}))  # Python is so cool
         self.articulatePID.setPIDSourceType(PIDSource.PIDSourceType.kDisplacement)
+        self.articulatePID.setOutputRange(-1.0, +1.0)
+        self.articulatePID.setInputRange(0, 360)  # todo
+
+    def rpmToNU(self, rpm):
+        return 4096 * rpm / (10 * 60)
 
     def updateSmartDashboardValues(self):
-        wpilib.SmartDashboard.putDouble("Left Shooter Speed", self.tShooterL.get())
-        wpilib.SmartDashboard.putDouble("Right Shooter Speed", self.tShooterR.get())
+        wpilib.SmartDashboard.putDouble("Left Shooter Speed", self.tShooterL.getSpeed())
+        wpilib.SmartDashboard.putDouble("Right Shooter Speed", self.tShooterR.getSpeed())
         wpilib.SmartDashboard.putDouble("Target Shooter Speed", self.tShooterL.getSetpoint())
+
+    def shooterSpeedToRPM(self, vel):
+        return (vel / 4096) * 60 * 10
 
     def setPower(self, power):
         """Set shooter raw power
@@ -131,11 +137,13 @@ class ShooterSubsystem(Subsystem):
         self.tShooterR.changeControlMode(wpilib.CANTalon.ControlMode.Speed)
         self.tShooterL.changeControlMode(wpilib.CANTalon.ControlMode.Speed)
 
-        # Multiply by ticks/rev (1024), divide by seconds/minute (60), divide by 100 for 1 second -> 10 ms
-        vel = rpm * 1024 / (60 * 100)
+        f = 1023 / self.rpmToNU(rpm)
 
-        self.tShooterL.set(vel)
-        self.tShooterR.set(vel)
+        self.tShooterL.setF(f)
+        self.tShooterR.setF(f)
+
+        self.tShooterL.set(rpm)
+        self.tShooterR.set(rpm)
 
     def setArticulateAngle(self, angle):
         """
@@ -202,10 +210,12 @@ class TeleopCommand(Command):
         self.driveSubsystem.drive(power, spin)
 
         if self.jsManip.getRawButton(1):
-            self.shooterSubsystem.setClosedLoopSpeed(wpilib.SmartDashboard.getDouble("Shooter RPM", 5000))  # Fire!
+            self.shooterSubsystem.setClosedLoopSpeed(wpilib.SmartDashboard.getDouble("Shooter RPM", 5400))  # Fire!
             # TODO Servo pusher
         elif self.jsManip.getRawButton(4):
-            self.shooterSubsystem.setClosedLoopSpeed(-1000)  # Eject
+            self.shooterSubsystem.setClosedLoopSpeed(500)  # Eject
+        elif self.jsManip.getRawButton(5):
+            self.shooterSubsystem.setClosedLoopSpeed(-500)  # Intake
         else:
             self.shooterSubsystem.setClosedLoopSpeed(0)
 
@@ -244,7 +254,6 @@ class MyRobot(CommandBasedRobot):
     def robotInit(self):
         subprocess.Popen("/home/lvuser/grip", shell=True)  # Start GRIP process
 
-        # self.accel = wpilib.ADXL345_I2C(wpilib.I2C.Port.kOnboard, wpilib.ADXL345_I2C.Range.k16G)
 
         self.subsystems['drive'] = DriveSubsystem()
         self.subsystems['shooter'] = ShooterSubsystem()
