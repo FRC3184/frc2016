@@ -249,12 +249,15 @@ class TeleopCommand(Command):
         self.jsManip = wpilib.Joystick(2)
 
     def run(self):
+        safePowerScale = 1.0
+        if wpilib.DriverStation.isBrownedOut():
+            safePowerScale = .7
         
         spencerPow = 1.0 if (self.jsLeft.getRawButton(1) or self.jsRight.getRawButton(1)) else 0.75
 
         power = self.jsLeft.getY() * spencerPow
         spin = -self.jsRight.getX()
-        self.driveSubsystem.drive(power, spin)
+        self.driveSubsystem.drive(power * safePowerScale, spin)
 
         if self.jsManip.getRawButton(1):
             self.shooterSubsystem.spinUp()
