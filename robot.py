@@ -81,42 +81,53 @@ class ShooterSubsystem(Subsystem):
         super().__init__()
 
         self.tShooterL = wpilib.CANTalon(4)
-        self.tShooterL.setFeedbackDevice(wpilib.CANTalon.FeedbackDevice.CtreMagEncoder_Relative)
-        self.tShooterL.changeControlMode(wpilib.CANTalon.ControlMode.Speed)
-
         self.tShooterR = wpilib.CANTalon(5)
+
+        self.tShooterL.setFeedbackDevice(wpilib.CANTalon.FeedbackDevice.CtreMagEncoder_Relative)
         self.tShooterR.setFeedbackDevice(wpilib.CANTalon.FeedbackDevice.CtreMagEncoder_Relative)
-        self.tShooterR.changeControlMode(wpilib.CANTalon.ControlMode.Speed)
+        self.tShooterL.setControlMode(wpilib.CANTalon.ControlMode.Speed)
+        self.tShooterR.setControlMode(wpilib.CANTalon.ControlMode.Speed)
+
+        Kp = 0
+        Ki = 0
+        Kd = 0
 
         # set pid values
-        self.tShooterL.setPID(0, 0, 0)
-        self.tShooterR.setPID(0, 0, 0)
+        self.tShooterL.setPID(Kp, Ki, Kd)
+        self.tShooterR.setPID(Kp, Ki, Kd)
 
         Kp = wpilib.SmartDashboard.getDouble("Articulate P", 0.01)
         Ki = wpilib.SmartDashboard.getDouble("Articulate I", 0.0)
         Kd = wpilib.SmartDashboard.getDouble("Articulate D", 0.0)
 
-        self.tArticulate = wpilib.CANTalon(6)
-        self.tArticulateEncoder = wpilib.Encoder(4, 5)
-        self.tArticulateEncoder.setDistancePerPulse(1440/360)  # Clicks per degree
-        self.articulatePID = wpilib.PIDController(Kp, Ki, Kd, self.tArticulateEncoder,
-                                                  type("ArticulateWriter",  # Janky implicit class to hook up PID
-                                                       (PIDOutput,),
-                                                       {"pidWrite": lambda output: self.tArticulate.set(output)}))  # Python is so cool
-        self.articulatePID.setPIDSourceType(PIDSource.PIDSourceType.kDisplacement)
-        self.articulatePID.setOutputRange(-1.0, +1.0)
-        self.articulatePID.setInputRange(0, 360)  # todo
+        self.articulateEncoder = wpilib.Encoder(4, 5)
+        self.articulateEncoder.reset()
 
-    def rpmToNU(self, rpm):
-        return 4096 * rpm / (10 * 60)
+        self.tArticulate = wpilib.CANTalon(6)
+        self.articulateEncoder.setDistancePerPulse((1440/(360*4)) * 1.5)  # Clicks per degree
+        # articulatePID = wpilib.PIDController(Kp=Kp, Ki=Ki, Kd=Kd, 
+        #                                      source=lambda: articulateEncoder.getDistance(),
+        #                                     output=tArticulate)
+        # articulatePID.setPIDSourceType(PIDSource.PIDSourceType.kDisplacement)
+        # articulatePID.setOutputRange(-0.5, +0.5)
+        # articulatePID.setInputRange(-180, 180)
+        # articulatePID.setSetpoint(0)
+        # articulatePID.enable()
+        
+        self.vIntake = wpilib.VictorSP(0)
 
     def updateSmartDashboardValues(self):
+        wpilib.SmartDashboard.putBoolean("Right Shooter Encoder present", 
+                                         tShooterR.isSensorPresent(wpilib.CANTalon.FeedbackDevice.CtreMagEncoder_Absolute) == wpilib.CANTalon.FeedbackDeviceStatus.Present)
+        wpilib.SmartDashboard.putBoolean("Left Shooter Encoder present", 
+                                         tShooterL.isSensorPresent(wpilib.CANTalon.FeedbackDevice.CtreMagEncoder_Absolute) == wpilib.CANTalon.FeedbackDeviceStatus.Present)
+
+    
         wpilib.SmartDashboard.putDouble("Left Shooter Speed", self.tShooterL.getSpeed())
         wpilib.SmartDashboard.putDouble("Right Shooter Speed", self.tShooterR.getSpeed())
         wpilib.SmartDashboard.putDouble("Target Shooter Speed", self.tShooterL.getSetpoint())
-
-    def shooterSpeedToRPM(self, vel):
-        return (vel / 4096) * 60 * 10
+        
+        wpilib.SmartDashboard.putNumber("Articulate Angle", articulateEncoder.getDistance())
 
     def setPower(self, power):
         """Set shooter raw power
@@ -129,26 +140,62 @@ class ShooterSubsystem(Subsystem):
         self.tShooterL.set(power)
         self.tShooterR.set(power)
 
-    def setClosedLoopSpeed(self, rpm):
-        """Use talon PID to set shooter speed
-        :param rpm: The desired shooter RPM
-        """
+    def spinUp(self):
+        vel = 5400
+    
+        f = 0.00015
+        p = .7 * 0.0000273
+        tShooterL.setF(f)
+        tShooterR.setF(f)
+        tShooterL.setP(p)
+        tShooterR.setP(p)
 
-        self.tShooterR.changeControlMode(wpilib.CANTalon.ControlMode.Speed)
-        self.tShooterL.changeControlMode(wpilib.CANTalon.ControlMode.Speed)
+        tShooterL.set(vel)
+        tShooterR.set(vel)
+    
+    def intake(self):
+        intakeBarPow = 1.0
+        intakeSpd = -2000
+    
+        vIntake.set(intakeBarPow)
 
-        f = 1023 / self.rpmToNU(rpm)
+        f = 0.000035
+        p = 0.00001
 
-        self.tShooterL.setF(f)
-        self.tShooterR.setF(f)
+        tShooterL.setF(f)
+        tShooterR.setF(f)
+        tShooterL.setP(p)
+        tShooterR.setP(p)
 
-        self.tShooterL.set(rpm)
-        self.tShooterR.set(rpm)
+        tShooterL.set(intake)
+        tShooterR.set(intake)
+        
+    def eject(self):
+        intakeBarPow = -1.0
+        intakeSpd = 2000 # increase
+    
+        vIntake.set(intakeBarPow)
+
+        f = -0.000035
+        p = 0.00001
+
+        tShooterL.setF(f)
+        tShooterR.setF(f)
+        tShooterL.setP(p)
+        tShooterR.setP(p)
+
+        tShooterL.set(intake)
+        tShooterR.set(intake)
+        
+    def idle(self):
+        vIntake.set(0)
+        tShooterL.set(0)
+        tShooterR.set(0)
 
     def setArticulateAngle(self, angle):
         """
         Translate angle in degrees to encoder clicks and update PID
-        :param angle: 0 .. 180
+        :param angle: -15 .. 120
         :return:
         """
         self.articulatePID.setSetpoint(angle)
@@ -210,16 +257,18 @@ class TeleopCommand(Command):
         self.driveSubsystem.drive(power, spin)
 
         if self.jsManip.getRawButton(1):
-            self.shooterSubsystem.setClosedLoopSpeed(wpilib.SmartDashboard.getDouble("Shooter RPM", 5400))  # Fire!
+            self.shooterSubsystem.spinUp()
             # TODO Servo pusher
         elif self.jsManip.getRawButton(4):
-            self.shooterSubsystem.setClosedLoopSpeed(500)  # Eject
+            self.shooterSubsystem.eject()
         elif self.jsManip.getRawButton(5):
-            self.shooterSubsystem.setClosedLoopSpeed(-500)  # Intake
+            self.shooterSubsystem.intake()
         else:
-            self.shooterSubsystem.setClosedLoopSpeed(0)
+            self.shooterSubsystem.idle()
 
-        if self.jsManip.getRawButton(7):
+        if self.jsManip.getRawButton(6):
+            self.shooterSubsystem.resetArticulate()
+        if self.jsManip.getRawButton(7):  # TODO potentiometer control
             self.shooterSubsystem.setArticulateAngle(0)
         if self.jsManip.getRawButton(8):
             self.shooterSubsystem.setArticulateAngle(90)
