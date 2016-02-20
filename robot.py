@@ -115,19 +115,21 @@ class ShooterSubsystem(Subsystem):
         # articulatePID.enable()
         
         self.vIntake = wpilib.VictorSP(0)
+        self.sKicker = wpilib.Servo(1)
+
+        self.limitLow = wpilib.DigitalInput(6)
 
     def updateSmartDashboardValues(self):
         wpilib.SmartDashboard.putBoolean("Right Shooter Encoder present", 
-                                         tShooterR.isSensorPresent(wpilib.CANTalon.FeedbackDevice.CtreMagEncoder_Absolute) == wpilib.CANTalon.FeedbackDeviceStatus.Present)
+                                         self.tShooterR.isSensorPresent(wpilib.CANTalon.FeedbackDevice.CtreMagEncoder_Absolute) == wpilib.CANTalon.FeedbackDeviceStatus.Present)
         wpilib.SmartDashboard.putBoolean("Left Shooter Encoder present", 
-                                         tShooterL.isSensorPresent(wpilib.CANTalon.FeedbackDevice.CtreMagEncoder_Absolute) == wpilib.CANTalon.FeedbackDeviceStatus.Present)
+                                         self.tShooterL.isSensorPresent(wpilib.CANTalon.FeedbackDevice.CtreMagEncoder_Absolute) == wpilib.CANTalon.FeedbackDeviceStatus.Present)
 
-    
         wpilib.SmartDashboard.putDouble("Left Shooter Speed", self.tShooterL.getSpeed())
         wpilib.SmartDashboard.putDouble("Right Shooter Speed", self.tShooterR.getSpeed())
         wpilib.SmartDashboard.putDouble("Target Shooter Speed", self.tShooterL.getSetpoint())
         
-        wpilib.SmartDashboard.putNumber("Articulate Angle", articulateEncoder.getDistance())
+        wpilib.SmartDashboard.putNumber("Articulate Angle", self.articulateEncoder.getDistance())
 
     def setPower(self, power):
         """Set shooter raw power
@@ -145,52 +147,58 @@ class ShooterSubsystem(Subsystem):
     
         f = 0.00015
         p = .7 * 0.0000273
-        tShooterL.setF(f)
-        tShooterR.setF(f)
-        tShooterL.setP(p)
-        tShooterR.setP(p)
+        self.tShooterL.setF(f)
+        self.tShooterR.setF(f)
+        self.tShooterL.setP(p)
+        self.tShooterR.setP(p)
 
-        tShooterL.set(vel)
-        tShooterR.set(vel)
-    
+        self.tShooterL.set(vel)
+        self.tShooterR.set(vel)
+
+    def kickOn(self):
+        self.sKicker.set(.4)
+
+    def kickOff(self):
+        self.sKicker.set(0)
+
     def intake(self):
         intakeBarPow = 1.0
         intakeSpd = -2000
     
-        vIntake.set(intakeBarPow)
+        self.vIntake.set(intakeBarPow)
 
         f = 0.000035
         p = 0.00001
 
-        tShooterL.setF(f)
-        tShooterR.setF(f)
-        tShooterL.setP(p)
-        tShooterR.setP(p)
+        self.tShooterL.setF(f)
+        self.tShooterR.setF(f)
+        self.tShooterL.setP(p)
+        self.tShooterR.setP(p)
 
-        tShooterL.set(intake)
-        tShooterR.set(intake)
+        self.tShooterL.set(intakeSpd)
+        self.tShooterR.set(intakeSpd)
         
     def eject(self):
         intakeBarPow = -1.0
-        intakeSpd = 2000 # increase
+        intakeSpd = 2000
     
-        vIntake.set(intakeBarPow)
+        self.vIntake.set(intakeBarPow)
 
         f = -0.000035
         p = 0.00001
 
-        tShooterL.setF(f)
-        tShooterR.setF(f)
-        tShooterL.setP(p)
-        tShooterR.setP(p)
+        self.tShooterL.setF(f)
+        self.tShooterR.setF(f)
+        self.tShooterL.setP(p)
+        self.tShooterR.setP(p)
 
-        tShooterL.set(intake)
-        tShooterR.set(intake)
+        self.tShooterL.set(intakeSpd)
+        self.tShooterR.set(intakeSpd)
         
     def idle(self):
-        vIntake.set(0)
-        tShooterL.set(0)
-        tShooterR.set(0)
+        self.vIntake.set(0)
+        self.tShooterL.set(0)
+        self.tShooterR.set(0)
 
     def setArticulateAngle(self, angle):
         """
@@ -250,7 +258,7 @@ class TeleopCommand(Command):
 
     def run(self):
         safePowerScale = 1.0
-        if wpilib.DriverStation.isBrownedOut():
+        if wpilib.DriverStation.getInstance().isBrownedOut():
             safePowerScale = .7
         
         spencerPow = 1.0 if (self.jsLeft.getRawButton(1) or self.jsRight.getRawButton(1)) else 0.75
@@ -259,9 +267,13 @@ class TeleopCommand(Command):
         spin = -self.jsRight.getX()
         self.driveSubsystem.drive(power * safePowerScale, spin)
 
+        if self.jsManip.getRawButton(2):
+            self.shooterSubsystem.kickOn()
+        else:
+            self.shooterSubsystem.kickOff()
+
         if self.jsManip.getRawButton(1):
             self.shooterSubsystem.spinUp()
-            # TODO Servo pusher
         elif self.jsManip.getRawButton(4):
             self.shooterSubsystem.eject()
         elif self.jsManip.getRawButton(5):
