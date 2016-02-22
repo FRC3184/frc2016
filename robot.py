@@ -45,13 +45,13 @@ class DriveSubsystem(Subsystem):
         self.driveAngle = 0
 
         # Put default config settings
-        wpilib.SmartDashboard.putBoolean("Use Turn PID", True)
+        wpilib.SmartDashboard.putBoolean("Use Turn PID", False)
         wpilib.SmartDashboard.putDouble("Turn Degrees/Second", 360)
         wpilib.SmartDashboard.putDouble("Turn P", 0.3)
 
     def drive(self, forward, turn):
         turnPow = turn
-        if wpilib.SmartDashboard.getBoolean("Use Turn PID", True):
+        if wpilib.SmartDashboard.getBoolean("Use Turn PID", False):
             self.driveAngle += turn * wpilib.SmartDashboard.getDouble("Turn Degrees/Second", 360)
             deltaAngle = self.driveAngle - self.gyro.getAngleZ()
             turnPow = wpilib.SmartDashboard.getDouble("Turn P", 0.3) * deltaAngle
@@ -83,6 +83,8 @@ class ShooterSubsystem(Subsystem):
         self.tShooterL = wpilib.CANTalon(4)
         self.tShooterR = wpilib.CANTalon(5)
 
+        self.tShooterL.setInverted(True)
+
         self.tShooterL.setFeedbackDevice(wpilib.CANTalon.FeedbackDevice.CtreMagEncoder_Relative)
         self.tShooterR.setFeedbackDevice(wpilib.CANTalon.FeedbackDevice.CtreMagEncoder_Relative)
         self.tShooterL.setControlMode(wpilib.CANTalon.ControlMode.Speed)
@@ -103,7 +105,7 @@ class ShooterSubsystem(Subsystem):
         self.articulateEncoder = wpilib.Encoder(4, 5)
         self.articulateEncoder.reset()
 
-        self.tArticulate = wpilib.CANTalon(6)
+        self.vArticulate = wpilib.VictorSP(1)
         self.articulateEncoder.setDistancePerPulse((1440/(360*4)) * 1.5)  # Clicks per degree
         # articulatePID = wpilib.PIDController(Kp=Kp, Ki=Ki, Kd=Kd, 
         #                                      source=lambda: articulateEncoder.getDistance(),
@@ -115,9 +117,15 @@ class ShooterSubsystem(Subsystem):
         # articulatePID.enable()
         
         self.vIntake = wpilib.VictorSP(0)
-        self.sKicker = wpilib.Servo(1)
+        self.sKicker = wpilib.Servo(2)
 
-        self.limitLow = wpilib.DigitalInput(6)
+        self.limLow = wpilib.DigitalInput(6)
+
+    def kickerOn(self):
+        self.sKicker.set(.5)
+
+    def kickerOff(self):
+        self.sKicker.set(.2)
 
     def updateSmartDashboardValues(self):
         wpilib.SmartDashboard.putBoolean("Right Shooter Encoder present", 
@@ -143,10 +151,13 @@ class ShooterSubsystem(Subsystem):
         self.tShooterR.set(power)
 
     def spinUp(self):
+        self.tShooterR.changeControlMode(wpilib.CANTalon.ControlMode.Speed)
+        self.tShooterL.changeControlMode(wpilib.CANTalon.ControlMode.Speed)
+
         vel = 5400
     
         f = 0.00015
-        p = .7 * 0.0000273
+        p = 1 * 0.0000273
         self.tShooterL.setF(f)
         self.tShooterR.setF(f)
         self.tShooterL.setP(p)
@@ -154,47 +165,43 @@ class ShooterSubsystem(Subsystem):
 
         self.tShooterL.set(vel)
         self.tShooterR.set(vel)
+    
+    def eject(self):
+        self.setPower(0.6)
+        intakeBarPow = -1.0
+        intakeSpd = -3000
+    
+        self.vIntake.set(intakeBarPow)
 
-    def kickOn(self):
-        self.sKicker.set(.4)
+        # f = 0.00009
+        # p = 0.00003
 
-    def kickOff(self):
-        self.sKicker.set(0)
+        # self.tShooterL.setF(f)
+        # self.tShooterR.setF(f)
+        # self.tShooterL.setP(p)
+        # self.tShooterR.setP(p)
 
+        # self.tShooterL.set(intakeSpd)
+        # self.tShooterR.set(intakeSpd)
+        
     def intake(self):
         intakeBarPow = 1.0
-        intakeSpd = -2000
-    
+        intakeSpd = 3000
+
+        self.setPower(-0.6)
         self.vIntake.set(intakeBarPow)
+        #
+        # f = -0.00009
+        # p = 0.00003
+        #
+        # self.tShooterL.setF(f)
+        # self.tShooterR.setF(f)
+        # self.tShooterL.setP(p)
+        # self.tShooterR.setP(p)
+        #
+        # self.tShooterL.set(intakeSpd)
+        # self.tShooterR.set(intakeSpd)
 
-        f = 0.000035
-        p = 0.00001
-
-        self.tShooterL.setF(f)
-        self.tShooterR.setF(f)
-        self.tShooterL.setP(p)
-        self.tShooterR.setP(p)
-
-        self.tShooterL.set(intakeSpd)
-        self.tShooterR.set(intakeSpd)
-        
-    def eject(self):
-        intakeBarPow = -1.0
-        intakeSpd = 2000
-    
-        self.vIntake.set(intakeBarPow)
-
-        f = -0.000035
-        p = 0.00001
-
-        self.tShooterL.setF(f)
-        self.tShooterR.setF(f)
-        self.tShooterL.setP(p)
-        self.tShooterR.setP(p)
-
-        self.tShooterL.set(intakeSpd)
-        self.tShooterR.set(intakeSpd)
-        
     def idle(self):
         self.vIntake.set(0)
         self.tShooterL.set(0)
@@ -206,7 +213,10 @@ class ShooterSubsystem(Subsystem):
         :param angle: -15 .. 120
         :return:
         """
-        self.articulatePID.setSetpoint(angle)
+        self.articulatePID.setSetpoint(angle+15)
+
+    def getAngle(self):
+        return self.articulateEncoder.getDistance()-15
 
     def calculateShooterParams(self):
         gripTable = NetworkTable.getTable("GRIP/myContoursReport")
@@ -241,6 +251,9 @@ class ShooterSubsystem(Subsystem):
 
         return anglePitch, angleYawDelta
 
+    def isHittingLow(self):
+        return not self.limLow.get()
+
 
 class TeleopCommand(Command):
     def __init__(self, robot):
@@ -267,12 +280,12 @@ class TeleopCommand(Command):
         spin = -self.jsRight.getX()
         self.driveSubsystem.drive(power * safePowerScale, spin)
 
-        if self.jsManip.getRawButton(2):
-            self.shooterSubsystem.kickOn()
-        else:
-            self.shooterSubsystem.kickOff()
-
         if self.jsManip.getRawButton(1):
+            self.shooterSubsystem.kickerOn()
+        else:
+            self.shooterSubsystem.kickerOff()
+
+        if self.jsManip.getRawButton(2):
             self.shooterSubsystem.spinUp()
         elif self.jsManip.getRawButton(4):
             self.shooterSubsystem.eject()
@@ -280,6 +293,16 @@ class TeleopCommand(Command):
             self.shooterSubsystem.intake()
         else:
             self.shooterSubsystem.idle()
+
+        articulatePow = self.jsManip.getY()
+        if articulatePow < 0:
+            if not self.shooterSubsystem.isHittingLow():
+                self.shooterSubsystem.tArticulate.set(self.jsManip.getY())
+            else:
+                self.shooterSubsystem.tArticulate.set(0)
+                self.shooterSubsystem.articulateEncoder.reset()
+        else:
+            self.shooterSubsystem.tArticulate.set(self.jsManip.getY())
 
         if self.jsManip.getRawButton(6):
             self.shooterSubsystem.resetArticulate()
