@@ -7,7 +7,6 @@ import sys
 from networktables import *
 from wpilib.interfaces import PIDOutput, PIDSource
 
-from ITG3200 import ITG3200
 import ITG3200
 from command_based import *
 
@@ -34,13 +33,15 @@ class DriveSubsystem(Subsystem):
         self.encLeftEncoder = wpilib.Encoder(2, 3)
 
         encDPP = 8.5 * math.pi / 1440  # E4T has 1440 PPR
-                                       # Wheels are 8.5in diameter
+        # Wheels are 8.5in diameter
         self.encRightEncoder.setDistancePerPulse(encDPP)
         self.encLeftEncoder.setDistancePerPulse(encDPP)
 
         self.gyro = ITG3200.ITG3200(wpilib.I2C.Port.kOnboard)
+        wpilib.Timer.delay(50/1000)
         self.gyro.init()
         self.gyro.calibrate()
+        self.gyro.resetAngle()
 
         self.driveAngle = 0
 
@@ -120,12 +121,13 @@ class ShooterSubsystem(Subsystem):
         self.sKicker = wpilib.Servo(2)
 
         self.limLow = wpilib.DigitalInput(6)
+        self.limHigh = wpilib.DigitalInput(7)
 
     def kickerOn(self):
-        self.sKicker.set(.5)
+        self.sKicker.set(.2)
 
     def kickerOff(self):
-        self.sKicker.set(.2)
+        self.sKicker.set(.5)
 
     def updateSmartDashboardValues(self):
         wpilib.SmartDashboard.putBoolean("Right Shooter Encoder present", 
@@ -137,7 +139,7 @@ class ShooterSubsystem(Subsystem):
         wpilib.SmartDashboard.putDouble("Right Shooter Speed", self.tShooterR.getSpeed())
         wpilib.SmartDashboard.putDouble("Target Shooter Speed", self.tShooterL.getSetpoint())
         
-        wpilib.SmartDashboard.putNumber("Articulate Angle", self.articulateEncoder.getDistance())
+        wpilib.SmartDashboard.putNumber("Articulate Angle", self.getAngle())
 
     def setPower(self, power):
         """Set shooter raw power
@@ -168,7 +170,7 @@ class ShooterSubsystem(Subsystem):
     
     def eject(self):
         self.setPower(0.6)
-        intakeBarPow = -1.0
+        intakeBarPow = 1.0
         intakeSpd = -3000
     
         self.vIntake.set(intakeBarPow)
@@ -185,7 +187,7 @@ class ShooterSubsystem(Subsystem):
         # self.tShooterR.set(intakeSpd)
         
     def intake(self):
-        intakeBarPow = 1.0
+        intakeBarPow = -1.0
         intakeSpd = 3000
 
         self.setPower(-0.6)
@@ -254,6 +256,9 @@ class ShooterSubsystem(Subsystem):
     def isHittingLow(self):
         return not self.limLow.get()
 
+    def isHittingHigh(self):
+        return not self.limHigh.get()
+
 
 class TeleopCommand(Command):
     def __init__(self, robot):
@@ -270,6 +275,7 @@ class TeleopCommand(Command):
         self.jsManip = wpilib.Joystick(2)
 
     def run(self):
+
         safePowerScale = 1.0
         if wpilib.DriverStation.getInstance().isBrownedOut():
             safePowerScale = .7
@@ -297,12 +303,19 @@ class TeleopCommand(Command):
         articulatePow = self.jsManip.getY()
         if articulatePow < 0:
             if not self.shooterSubsystem.isHittingLow():
-                self.shooterSubsystem.tArticulate.set(self.jsManip.getY())
+                self.shooterSubsystem.vArticulate.set(self.jsManip.getY())
             else:
-                self.shooterSubsystem.tArticulate.set(0)
+                self.shooterSubsystem.vArticulate.set(0)
                 self.shooterSubsystem.articulateEncoder.reset()
+        elif articulatePow > 0:
+            if not self.shooterSubsystem.isHittingHigh():
+                self.shooterSubsystem.vArticulate.set(self.jsManip.getY())
+            else:
+                self.shooterSubsystem.vArticulate.set(0)
+                self.shooterSubsystem.articulateEncoder.reset()
+
         else:
-            self.shooterSubsystem.tArticulate.set(self.jsManip.getY())
+            self.shooterSubsystem.vArticulate.set(self.jsManip.getY())
 
         if self.jsManip.getRawButton(6):
             self.shooterSubsystem.resetArticulate()

@@ -67,7 +67,7 @@ FULLSCALE_2000 = 0x03
 
 CLOCK_PLL_XGYRO = 0x01
 
-GYRO_SENSITIVITY = 823.626830313  # test
+GYRO_SENSITIVITY = 14.375 * 823.626830313  # test
 TEMP_SENSITIVITY = 280
 TEMP_OFFSET = -13200
 
@@ -97,16 +97,17 @@ class ITG3200(PIDSource):
         self.centerZ = 0
 
         self.intrTask = TimerTask("ITG3200 Integrate", 0.05, self.update)
+        self.intrTask.start()
 
-        self.enabled = False
+        self.enabled = True
 
     def readI2C(self, register, count):
         if not self.enabled:
             return [0]*count
         try:
-            return self.i2c.read(register, count)
+            return self.i2c.transaction([register], count)
         except IOError:
-            wpilib.DriverStation.reportError("Error reading", False)
+            wpilib.DriverStation.reportError("Error reading from ITG3200", False)
             return [0]*count
 
     def writeI2C(self, register, data):
@@ -115,14 +116,14 @@ class ITG3200(PIDSource):
         try:
             self.i2c.write(register, data)
         except IOError:
-            wpilib.DriverStation.reportError("Error writing", False)
+            wpilib.DriverStation.reportError("Error writing to ITG3200", False)
 
     def resetAngle(self):
         self.angleX = 0
         self.angleY = 0
         self.angleZ = 0
 
-    def calibrate(self, time=5.0, samples=100):
+    def calibrate(self, time=10.0, samples=100):
         """
         Calibrate
 
@@ -135,6 +136,8 @@ class ITG3200(PIDSource):
         calX = 0
         calY = 0
         calZ = 0
+
+        print("Starting ITG3200 calibration routine for {} seconds".format(time))
         while gathered < samples:
             calX += self.getRateX()
             calY += self.getRateY()
@@ -142,6 +145,7 @@ class ITG3200(PIDSource):
 
             gathered += 1
             Timer.delay(time/samples)
+        print("Done calibrating ITG3200")
         calX /= samples
         calY /= samples
         calZ /= samples
@@ -192,13 +196,13 @@ class ITG3200(PIDSource):
     # flow in either case, but the first reports may have higher error offsets.
     def init(self):
         if self.i2c.addressOnly():
-            wpilib.DriverStation.reportError("Could not address", False)
+            wpilib.DriverStation.reportError("Could not address ITG3200", False)
             self.enabled = False
-            return False
+            # return False
         if not self.testConnection():
             wpilib.DriverStation.reportError("Could not connect to ITG3200", False)
-            self.enabled = False
-            return False
+            # self.enabled = False
+            # return False
         self.setFullScaleRange(FULLSCALE_2000)
         self.setClockSource(CLOCK_PLL_XGYRO)
         self.setIntDeviceReadyEnabled(True)
