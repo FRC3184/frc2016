@@ -67,9 +67,27 @@ FULLSCALE_2000 = 0x03
 
 CLOCK_PLL_XGYRO = 0x01
 
-GYRO_SENSITIVITY = 14.375 * 823.626830313  # test
+GYRO_SENSITIVITY = 1/2 * 14.375 * 2**15 / 2000
 TEMP_SENSITIVITY = 280
 TEMP_OFFSET = -13200
+
+
+def signed_short(val):
+    """
+    Convert 16 bits in little endian number form into a signed short
+
+    Actually, scratch that. I don't know what it does, but it works.
+    :param val: a 16-bit unsigned integer
+    :return: The signed short from -(2**15) to 2**15 - 1
+    """
+    val &= 0xFFFF  # Truncate to 16 bits
+    sig = -1 if val >> 15 == 1 else 1  # Get sign from MSB
+    u_short = (val & 0x7FFF)  # Drop MSB
+
+    if sig == 1:
+        u_short = 2**15 - u_short
+
+    return (sig * u_short) ^ 0x7FFF
 
 
 class Axis:
@@ -85,7 +103,7 @@ def rshift(val, n):
 
 
 class ITG3200(PIDSource):
-    def __init__(self, port, addr=DEFAULT_ADDR):
+    def __init__(self, port, addr=DEFAULT_ADDR, integrate=True):
         self.i2c = wpilib.I2C(port, addr)
         self.addr = addr
         self.pidAxis = Axis.X
@@ -96,10 +114,17 @@ class ITG3200(PIDSource):
         self.centerY = 0
         self.centerZ = 0
 
-        self.intrTask = TimerTask("ITG3200 Integrate", 0.05, self.update)
-        self.intrTask.start()
+        self.intrTask = None
+        if integrate:
+            self.intrTask = TimerTask("ITG3200 Integrate", 0.05, self.update)
+            self.intrTask.start()
 
         self.enabled = True
+
+    def free(self):
+        self.i2c.free()
+        if self.intrTask is not None:
+            self.intrTask.cancel()
 
     def readI2C(self, register, count):
         if not self.enabled:
@@ -150,6 +175,10 @@ class ITG3200(PIDSource):
         calY /= samples
         calZ /= samples
 
+        print("Cal X: {}".format(calX))
+        print("Cal Y: {}".format(calY))
+        print("Cal Z: {}".format(calZ))
+
         self.centerX = calX
         self.centerY = calY
         self.centerZ = calZ
@@ -160,9 +189,9 @@ class ITG3200(PIDSource):
         :param dt: Delta time in milliseconds
         :return:
         """
-        
+
         # TODO: Filter out data? Use accel?
-        
+
         real_dt = dt/1000  # Turn ms into seconds
 
         self.angleX += self.getRateX() * real_dt
@@ -203,22 +232,27 @@ class ITG3200(PIDSource):
             wpilib.DriverStation.reportError("Could not connect to ITG3200", False)
             # self.enabled = False
             # return False
+        wpilib.Timer.delay(50/1000)
         self.setFullScaleRange(FULLSCALE_2000)
+        self.setSleepEnabled(False)
+        self.setStandByXEnabled(False)
+        self.setStandByYEnabled(False)
+        self.setStandByZEnabled(False)
         self.setClockSource(CLOCK_PLL_XGYRO)
         self.setIntDeviceReadyEnabled(True)
         self.setIntDataReadyEnabled(True)
         self.enabled = True
         return True
-    
+
     def getAngleX(self):
         return self.angleX
-        
+
     def getAngleY(self):
         return self.angleY
-        
+
     def getAngleZ(self):
         return self.angleZ
-        
+
     def getAngle(self, axis):
         if axis == Axis.X:
             return self.getAngleX()
@@ -226,7 +260,7 @@ class ITG3200(PIDSource):
             return self.getAngleY()
         if axis == Axis.Z:
             return self.getAngleZ()
-    
+
     def getRate(self, axis):
         if axis == Axis.X:
             return self.getRateX()
@@ -239,7 +273,7 @@ class ITG3200(PIDSource):
 
     def readShortFromRegister(self, register, count):
         buf = self.readI2C(register, count)
-        return (buf[0] << 8) | buf[1]
+        return signed_short((buf[0] << 8) | buf[1])
 
     def writeBits(self, register, bit, numBits, value):
         rawData = self.readI2C(register, 1)
@@ -248,7 +282,7 @@ class ITG3200(PIDSource):
 
     def readBit(self, register, bit):
         return (self.readI2C(register, bit) & bit) != 0
-    
+
     def writeBit(self, register, bit, value):
         """
 
@@ -271,7 +305,7 @@ class ITG3200(PIDSource):
 
     def setFullScaleRange(self, range):
         self.writeBits(RA_DLPF_FS, DF_FS_SEL_BIT, DF_FS_SEL_LENGTH, range)
-        
+
     def getFullScaleRange(self):
         return self.getRegisterBits(RA_DLPF_FS, DF_FS_SEL_BIT, DF_FS_SEL_LENGTH)
 
@@ -285,23 +319,25 @@ class ITG3200(PIDSource):
         self.writeBit(RA_INT_CFG, INTCFG_RAW_RDY_EN_BIT, enabled)
 
     def getRateX(self):
-        return (self.readShortFromRegister(RA_GYRO_XOUT_H, 2)/GYRO_SENSITIVITY) - self.centerX
+        return ((self.readShortFromRegister(RA_GYRO_XOUT_H, 2)) /
+                GYRO_SENSITIVITY) - self.centerX
 
     def getRateY(self):
-        return (self.readShortFromRegister(RA_GYRO_YOUT_H, 2)/GYRO_SENSITIVITY) - self.centerY
+        return ((self.readShortFromRegister(RA_GYRO_YOUT_H, 2))/GYRO_SENSITIVITY) - self.centerY
 
     def getRateZ(self):
-        return (self.readShortFromRegister(RA_GYRO_ZOUT_H, 2)/GYRO_SENSITIVITY) - self.centerZ
-        
+        return ((self.readShortFromRegister(RA_GYRO_ZOUT_H, 2)) /
+                GYRO_SENSITIVITY) - self.centerZ
+
     def getTemperature(self):
         return (self.readShortFromRegister(RA_TEMP_OUT_H, 2)/TEMP_SENSITIVITY) + TEMP_OFFSET
 
     def testConnection(self):
         return self.getDeviceID() == 0b110100
-    
+
     def getSampleRate(self):
         return self.getRegisterByte(RA_SMPLRT_DIV)
-        
+
     def setSampleRate(self, rate):
         self.writeI2C(RA_SMPLRT_DIV, rate)
 
@@ -331,27 +367,58 @@ class ITG3200(PIDSource):
     def getRegisterBits(self, register, bit, numBits):
         containingByte = self.getRegisterByte(register)
         return self.getBits(containingByte, bit, numBits)
-    
+
     def getSleepEnabled(self):
         return self.readBit(RA_PWR_MGM, PWR_SLEEP_BIT)
-    
+
     def setSleepEnabled(self, enabled):
         self.writeBit(RA_PWR_MGM, PWR_SLEEP_BIT, enabled)
-        
+
     def setStandByXEnabled(self, enabled):
         self.writeBit(RA_PWR_MGM, PWR_STBY_XG_BIT, enabled)
-    
+
     def setStandByYEnabled(self, enabled):
         self.writeBit(RA_PWR_MGM, PWR_STBY_YG_BIT, enabled)
-    
+
     def setStandByZEnabled(self, enabled):
         self.writeBit(RA_PWR_MGM, PWR_STBY_ZG_BIT, enabled)
-        
+
     def getStandByXEnabled(self):
         return self.readBit(RA_PWR_MGM, PWR_STBY_XG_BIT)
-    
+
     def getStandByYEnabled(self):
         return self.readBit(RA_PWR_MGM, PWR_STBY_YG_BIT)
-    
+
     def getStandByZEnabled(self):
         return self.readBit(RA_PWR_MGM, PWR_STBY_ZG_BIT)
+
+    class Axis:
+        X = 0
+        Y = 1
+        Z = 2
+
+    class Gyro(PIDSource):
+        def __init__(self, axis, gyroscope):
+            """
+
+            :param axis: The axis to record
+            :type axis: Axis
+            :param gyroscope: The ITG3200 instance
+            :type gyroscope: ITG3200
+            :return: The Gyro object for PID usage
+            """
+            self.pidSourceType = PIDSource.PIDSourceType.kRate
+            self.axis = axis
+            self.gyroscope = gyroscope
+
+        def getPIDSourceType(self):
+            return self.pidSourceType
+
+        def setPIDSourceType(self, pidSource):
+            self.pidSourceType = pidSource
+
+        def pidGet(self):
+            if self.pidSourceType is self.PIDSourceType.kRate:
+                return self.gyroscope.getRate(self.axis)
+            else:
+                return self.gyroscope.getAngle(self.axis)

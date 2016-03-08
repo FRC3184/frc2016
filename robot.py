@@ -29,6 +29,12 @@ class DriveSubsystem(Subsystem):
         tFrontRight = wpilib.CANTalon(2)
         tRearRight = wpilib.CANTalon(3)
         self.rdRobotDrive = wpilib.RobotDrive(tFrontLeft, tRearLeft, tFrontRight, tRearRight)
+        invertDrive = True  # False for comp bot, True for practice
+        self.rdRobotDrive.setInvertedMotor(wpilib.RobotDrive.MotorType.kFrontLeft, invertDrive)
+        self.rdRobotDrive.setInvertedMotor(wpilib.RobotDrive.MotorType.kFrontRight, invertDrive)
+        self.rdRobotDrive.setInvertedMotor(wpilib.RobotDrive.MotorType.kRearLeft, invertDrive)
+        self.rdRobotDrive.setInvertedMotor(wpilib.RobotDrive.MotorType.kRearRight, invertDrive)
+
         self.encRightEncoder = wpilib.Encoder(0, 1)
         self.encLeftEncoder = wpilib.Encoder(2, 3)
 
@@ -53,8 +59,8 @@ class DriveSubsystem(Subsystem):
     def drive(self, forward, turn):
         turnPow = turn
         if wpilib.SmartDashboard.getBoolean("Use Turn PID", False):
-            self.driveAngle += turn * wpilib.SmartDashboard.getDouble("Turn Degrees/Second", 360)
-            deltaAngle = self.driveAngle - self.gyro.getAngleZ()
+            self.driveAngle += turn * wpilib.SmartDashboard.getDouble("Turn Degrees/Second", 360) * 50/1000
+            deltaAngle = self.driveAngle - self.gyro.getAngleY()
             turnPow = wpilib.SmartDashboard.getDouble("Turn P", 0.3) * deltaAngle
 
         self.rdRobotDrive.arcadeDrive(forward, turnPow)
