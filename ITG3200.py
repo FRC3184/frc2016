@@ -90,12 +90,6 @@ def signed_short(val):
     return (sig * u_short) ^ 0x7FFF
 
 
-class Axis:
-        X = 0
-        Y = 1
-        Z = 2
-
-
 def rshift(val, n):
     return (val % 0x100000000) >> n
 
@@ -106,13 +100,15 @@ class ITG3200(PIDSource):
     def __init__(self, port, addr=DEFAULT_ADDR, integrate=True):
         self.i2c = wpilib.I2C(port, addr)
         self.addr = addr
-        self.pidAxis = Axis.X
-        self.setPIDSourceType(PIDSource.PIDSourceType.kRate)
         self.resetAngle()
 
         self.centerX = 0
         self.centerY = 0
         self.centerZ = 0
+
+        self.xGyro = self.Gyro(self.Axis.X, self)
+        self.yGyro = self.Gyro(self.Axis.Y, self)
+        self.zGyro = self.Gyro(self.Axis.Z, self)
 
         self.intrTask = None
         if integrate:
@@ -148,7 +144,7 @@ class ITG3200(PIDSource):
         self.angleY = 0
         self.angleZ = 0
 
-    def calibrate(self, time=10.0, samples=100):
+    def calibrate(self, time=5.0, samples=100):
         """
         Calibrate
 
@@ -198,23 +194,6 @@ class ITG3200(PIDSource):
         self.angleY += self.getRateY() * real_dt
         self.angleZ += self.getRateZ() * real_dt
 
-    # PID stuff
-
-    def getPIDSourceType(self):
-        return self.pidSourceType
-
-    def setPIDSourceType(self, pidSource):
-        self.pidSourceType = pidSource
-
-    def setPIDAxis(self, axis):
-        self.pidAxis = axis
-
-    def pidGet(self):
-        if self.getPIDSourceType() == PIDSource.PIDSourceType.kRate:
-            return self.getRate(self.pidAxis)
-        else:
-            return self.getAngle(self.pidAxis)
-
     # Power on and prepare for general usage.
     # This will activate the gyroscope, so be sure to adjust the power settings
     # after you call this method if you want it to enter standby mode, or another
@@ -254,19 +233,19 @@ class ITG3200(PIDSource):
         return self.angleZ
 
     def getAngle(self, axis):
-        if axis == Axis.X:
+        if axis == self.Axis.X:
             return self.getAngleX()
-        if axis == Axis.Y:
+        if axis == self.Axis.Y:
             return self.getAngleY()
-        if axis == Axis.Z:
+        if axis == self.Axis.Z:
             return self.getAngleZ()
 
     def getRate(self, axis):
-        if axis == Axis.X:
+        if axis == self.Axis.X:
             return self.getRateX()
-        if axis == Axis.Y:
+        if axis == self.Axis.Y:
             return self.getRateY()
-        if axis == Axis.Z:
+        if axis == self.Axis.Z:
             return self.getRateZ()
 
     # Gyro Interface

@@ -75,7 +75,13 @@ class DriveSubsystem(Subsystem):
         self.rdRobotDrive.arcadeDrive(forward, turnPow)
 
     def getAverageEncoderCount(self):
-        return (-self.encLeftEncoder.getDistance() + self.encRightEncoder.getDistance())/2
+        return (self.getLeftEncoderCount() + self.getRightEncoderCount())/2
+
+    def getLeftEncoderCount(self):
+        return -self.encLeftEncoder.getDistance()
+
+    def getRightEncoderCount(self):
+        return self.encRightEncoder.getDistance()
 
     def resetEncoderCount(self):
         self.encRightEncoder.reset()
@@ -390,28 +396,71 @@ class TeleopCommand(Command):
 
 
 class AutoDriveOverDefenseCommand(Command):
-    def __init__(self, robot):
+    class State:
+        NOT_HIT_PLATFORM = 0
+        ON_PLATFORM = 1
+        PAST_PLATFORM = 2
+        DONE = 10
+
+    def __init__(self, robot, power=.7):
         super().__init__()
 
         self.require('drive')
+        self.require('shooter')
         self.driveSubystem = robot.subsystems['drive']
+        self.shooterSubsystem = robot.subsystems['shooter']
 
         self.isFinished = lambda: False
+        self.turnPow = 0
+        self.currentState = self.State.NOT_HIT_PLATFORM
+        self.drivePower = power
 
     def start(self):
         self.driveSubystem.resetEncoderCount()
         self.driveSubystem.resetGyro()  # only reset axis? or face straight
 
+        self.turnPID = wpilib.PIDController(Kp=0.3, Ki=0, Kd=0, source=self.driveSubystem.gyro.xGyro,
+                                            output=self.setTurnPow)
+        self.turnPID.setPIDSourceType(PIDSource.PIDSourceType.kDisplacement)
+        self.turnPID.setSetpoint(0)
+        self.turnPID.enable()
+
+        self.shooterSubsystem.setArticulateAngle(115)  # Need to move limit switch to hit on top limit
+
+    def setTurnPow(self, power):
+        self.turnPow = power
+
     def run(self):
-        axis = ITG3200.Axis.X
+        anglePitch = self.driveSubystem.gyro.getAngleY()
 
-        wpilib.SmartDashboard.putNumber("Average Encoder Count", self.driveSubystem.getAverageEncoderCount())
+        self.driveSubystem.updateSmartDashboardValues()
+        self.shooterSubsystem.updateSmartDashboardValues()
 
-        if self.driveSubystem.getAverageEncoderCount() < -10 * 12:  # idk lol 5 ft or TODO timeout and gyro info
+        if self.currentState is self.State.NOT_HIT_PLATFORM:
+            self.driveSubystem.drive(self.drivePower, self.turnPow)
+
+            if anglePitch > 10:
+                self.currentState = self.State.ON_PLATFORM
+
+        elif self.currentState is self.State.ON_PLATFORM:
+            self.driveSubystem.drive(self.drivePower, self.turnPow)
+
+            if anglePitch < -10:
+                self.currentState = self.State.PAST_PLATFORM
+
+        elif self.currentState is self.State.PAST_PLATFORM:
+            limit = 3 * 12
+            self.driveSubystem.drive(self.drivePower, self.turnPow)
+
+            if self.driveSubystem.getLeftEncoderCount() > limit or self.driveSubystem.getRightEncoderCount() > limit:
+                self.currentState = self.State.DONE
+
+        elif self.currentState is self.State.DONE:
             self.driveSubystem.drive(0, 0)
-            self.isFinished = lambda: True  # I LOVE PYTHON
-        else:
-            self.driveSubystem.drive(.7, 0)
+            self.isFinished = lambda: True
+
+    def finish(self):
+        self.turnPID.disable()
 
 
 class MyRobot(CommandBasedRobot):
