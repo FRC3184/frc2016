@@ -120,12 +120,12 @@ class ShooterSubsystem(Subsystem):
 
         dist = 0
         params = self.calculateShooterParams()
+        pitch = 0
         if params is not None:
-            _, _, dist, _ = params
-        angleToShoot = self.shootAngle(dist)
+            pitch, _, dist, _ = params
 
         wpilib.SmartDashboard.putNumber("Distance From Tower", dist)
-        wpilib.SmartDashboard.putNumber("Shoot Angle", angleToShoot)
+        wpilib.SmartDashboard.putNumber("Shoot Angle", pitch)
 
     def setPower(self, power):
         """Set shooter raw power
@@ -230,10 +230,13 @@ class ShooterSubsystem(Subsystem):
         distanceY = self.distanceFromTower(largest.width)
         distanceX = 0  # distance between robot aim plane and center of goal. calculate from centerX and distanceY (in)
 
-        anglePitch = self.shootAngle(distanceY)
+        anglePitch = self.angleFromGoalWidth(largest.width)
         angleYawDelta = math.degrees(math.atan2(distanceY, distanceX))
 
         return anglePitch, angleYawDelta, distanceY, distanceX
+
+    def angleFromGoalWidth(self, goalw):
+        return -0.000020941*(goalw**3) + 0.0088104*(goalw**2) - 0.95513*goalw + 66.004
 
     def distanceFromTower(self, goalw):
         return 0.0068478*(goalw**2) - 2.9095*goalw + 346.76

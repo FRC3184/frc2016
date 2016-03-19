@@ -3,6 +3,7 @@ from AutoDriveOverDefenseCommand import AutoDriveOverDefenseCommand
 
 
 class AutonomousCommand(CommandGroup):
-    def __init__(self, robot):
+    def __init__(self, l):
         super().__init__()
-        self.addSequential(AutoDriveOverDefenseCommand(robot))
+        for k in l:
+            self.addSequential(k)

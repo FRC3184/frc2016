@@ -36,40 +36,22 @@ class DriveSubsystem(Subsystem):
         wpilib.Timer.delay(50/1000)
         self.gyro.calibrate()
 
-        self.turnPID = wpilib.PIDController(Kp=0.015, Ki=0.00, Kd=0.015, source=self.gyro.xGyro,
-                                            output=self.setTurnPow)
         self.gyro.resetAngle()
 
-        self.useTurnPID = True
-
-        self.driveAngle = 0
-        self.turnPow = 0
-        self.turnPID.setPIDSourceType(PIDSource.PIDSourceType.kDisplacement)
-        self.turnPID.setOutputRange(-1, 1)
-        self.turnPID.setAbsoluteTolerance(2)
-        self.turnPID.enable()
-
-        # Put default config settings
-        wpilib.SmartDashboard.putBoolean("Use Turn PID", True)
-        wpilib.SmartDashboard.putDouble("Turn Degrees per Second", 1080)
-
-    def setTurnPow(self, turnPow):
-        if abs(turnPow) < 0.37:
-            turnPow = 0.37 * abs(turnPow)/turnPow
-
-        if self.turnPID.onTarget():
-
-            turnPow = 0
-        self.turnPow = turnPow
+        self.lastThrottle = 0
+        self.lastTurn = 0
+        self.startAngle = 0
 
     def drive(self, forward, turn):
         turnPow = turn
-        if self.useTurnPID:
-            self.driveAngle += turn * wpilib.SmartDashboard.getDouble("Turn Degrees per Second", 1080) / 50
-            self.turnPID.setSetpoint(self.driveAngle)
-            turnPow = self.turnPow
+        if (abs(self.lastThrottle) < 0.1 and abs(forward) > 0.1) or abs(turn) > 0.1:
+            self.startAngle = self.gyro.getAngleX()
+        if abs(turn) < 0.1 and abs(forward) > 0.1 and abs(self.lastTurn) < 0.1:
+            turnPow = (self.startAngle - self.gyro.getAngleX())*0.1
 
         self.rdRobotDrive.arcadeDrive(forward, turnPow)
+        self.lastThrottle = forward
+        self.lastTurn = turnPow
 
     def getAverageEncoderCount(self):
         return (self.getLeftEncoderCount() + self.getRightEncoderCount())/2
@@ -93,4 +75,4 @@ class DriveSubsystem(Subsystem):
         wpilib.SmartDashboard.putDouble("Gyro Angle X", self.gyro.getAngleX())
         wpilib.SmartDashboard.putDouble("Gyro Angle Y", self.gyro.getAngleY())
         wpilib.SmartDashboard.putDouble("Gyro Angle Z", self.gyro.getAngleZ())
-        wpilib.SmartDashboard.putDouble("Gyro Setpoint", self.turnPID.getSetpoint())
+        wpilib.SmartDashboard.putDouble("Start Angle", self.startAngle)

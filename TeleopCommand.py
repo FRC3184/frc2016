@@ -53,7 +53,8 @@ class TeleopCommand(Command):
         if abs(spin) < 0.05:
             spin = 0
 
-        spin **= 3
+        if spencerPow != 1:
+            spin *= .5
         self.driveSubsystem.drive(power, spin)  # todo implement Jaci drive
 
         if self.jsLeft.getRawButton(7):
@@ -61,27 +62,14 @@ class TeleopCommand(Command):
 
         if self.jsManip.getRawButton(9):
             self.articulateAngle = 105
-
-        if self.jsLeft.getRawButton(8):
-            self.driveSubsystem.resetGyro()
-            self.driveSubsystem.driveAngle = 0
-
-        if self.jsRight.getRawButton(2) and self.oneeightycd > 1:
-            self.driveSubsystem.driveAngle += 180
-            self.oneeightycd = 0
-        if self.jsRight.getRawButton(5) and self.oneeightycd > 1:
-            self.driveSubsystem.driveAngle += 90
-            self.oneeightycd = 0
-        if self.jsRight.getRawButton(4) and self.oneeightycd > 1:
-            self.driveSubsystem.driveAngle -= 90
-            self.oneeightycd = 0
+        if self.jsManip.getRawButton(10):
+            self.articulateAngle = -15
 
         if self.jsManip.getRawButton(5):
             k = self.shooterSubsystem.calculateShooterParams()
             if k is not None:
-                _, _, dist, _ = k
-                angle = self.shooterSubsystem.shootAngle(dist)
-                self.articulateAngle = angle
+                pitch, _, dist, _ = k
+                self.articulateAngle = pitch
 
         if self.jsManip.getRawButton(6):
             self.shooterSubsystem.kickerOn()
@@ -102,7 +90,7 @@ class TeleopCommand(Command):
         articulatePow = (self.jsManip.getRawAxis(1) + self.jsManip.getRawAxis(3))/-2
         if abs(articulatePow) < 0.05:
             articulatePow = 0
-        self.articulateAngle += articulatePow * 90/50  # degrees/hz. works, idk why
+        self.articulateAngle += articulatePow * 135/50  # degrees/hz. works, idk why
         self.articulateAngle = clamp(self.articulateAngle, config.articulateAngleLow, config.articulateAngleHigh)
 
         self.shooterSubsystem.setArticulateAngle(self.articulateAngle)
