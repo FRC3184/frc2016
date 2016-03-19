@@ -8,9 +8,8 @@ articulateKi = 0.001
 articulateKd = 0.012
 
 batterShootSpeed = 4100
-batterShootKf = 0.045
-batterShootKp = 0.001
 
 shootSpeed = 5400
-shootKf = 0.00015
-shootKp = 0.0000400
+
+shooterKp = 0.01
+shooterKf = 3/18700

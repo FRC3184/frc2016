@@ -1,6 +1,7 @@
 import wpilib
 import math
 import config
+from wpilib.interfaces import PIDSource
 from wpilib.command import Subsystem
 from networktables import NumberArray, NetworkTable
 
@@ -31,22 +32,29 @@ class ShooterSubsystem(Subsystem):
         self.tShooterL.setInverted(not config.isPracticeBot)  # True for comp bot, false for practice
         self.tShooterR.setInverted(not config.isPracticeBot)  # True for comp bot, false for practice
 
-        self.tShooterL.setFeedbackDevice(wpilib.CANTalon.FeedbackDevice.CtreMagEncoder_Relative)
-        self.tShooterR.setFeedbackDevice(wpilib.CANTalon.FeedbackDevice.CtreMagEncoder_Relative)
-        self.tShooterL.setControlMode(wpilib.CANTalon.ControlMode.Speed)
-        self.tShooterR.setControlMode(wpilib.CANTalon.ControlMode.Speed)
+        self.shooterEncoderType = wpilib.CANTalon.FeedbackDevice.CtreMagEncoder_Relative
 
-        Kp = 0
-        Ki = 0
-        Kd = 0
+        self.tShooterL.setFeedbackDevice(self.shooterEncoderType)
+        self.tShooterR.setFeedbackDevice(self.shooterEncoderType)
 
-        # set pid values
-        self.tShooterL.setPID(Kp, Ki, Kd)
-        self.tShooterR.setPID(Kp, Ki, Kd)
+        self.shooterLPID = wpilib.PIDController(Kp=config.shooterKp, Ki=0, Kd=0, Kf=config.shooterKf,
+                                                source=self.tShooterL.getSpeed,
+                                                output=self.tShooterL.set, period=20)  # Fast PID Loop
+        self.shooterLPID.setPIDSourceType(PIDSource.PIDSourceType.kRate)
+        self.shooterLPID.setOutputRange(-1, 1)
+        self.shooterLPID.setInputRange(-18700/3, 18700/3)
 
-        self.defaultArticulateP = 0.011
-        self.defaultArticulateI = 0.001
-        self.defaultArticulateD = 0.012
+        self.shooterRPID = wpilib.PIDController(Kp=config.shooterKp, Ki=0, Kd=0, Kf=config.shooterKf,
+                                                source=self.tShooterR.getSpeed,
+                                                output=self.tShooterR.set, period=20)  # Fast PID Loop
+        self.shooterRPID.setPIDSourceType(PIDSource.PIDSourceType.kRate)
+        self.shooterRPID.setOutputRange(-1, 1)
+        self.shooterRPID.setInputRange(-18700/3, 18700/3)
+
+        self.shooterLPID.setSetpoint(0)
+        self.shooterRPID.setSetpoint(0)
+        self.shooterLPID.enable()
+        self.shooterRPID.enable()
 
         self.articulateEncoder = wpilib.Encoder(4, 5)
         self.articulateEncoder.reset()
@@ -59,7 +67,7 @@ class ShooterSubsystem(Subsystem):
         self.articulatePID.setOutputRange(-1, +1)
         self.articulatePID.setInputRange(config.articulateAngleLow, config.articulateAngleHigh)
         self.articulatePID.setSetpoint(35)
-        self.articulatePID.setPercentTolerance(1/130)
+        self.articulatePID.setPercentTolerance(100/130)
         self.articulatePID.enable()
 
         self.vIntake = wpilib.VictorSP(0)
@@ -67,13 +75,6 @@ class ShooterSubsystem(Subsystem):
 
         self.limLow = wpilib.DigitalInput(6)
         self.limHigh = wpilib.DigitalInput(7)
-
-    def updatePID(self):
-        Kp = wpilib.SmartDashboard.getDouble("Articulate P", self.defaultArticulateP)
-        Ki = wpilib.SmartDashboard.getDouble("Articulate I", self.defaultArticulateI)
-        Kd = wpilib.SmartDashboard.getDouble("Articulate D", self.defaultArticulateD)
-
-        self.articulatePID.setPID(Kp, Ki, Kd)
 
     def updateArticulate(self, articulatePow):
         current = self.pdp.getCurrent(1)  # Channel for test bot
@@ -107,13 +108,14 @@ class ShooterSubsystem(Subsystem):
 
     def updateSmartDashboardValues(self):
         wpilib.SmartDashboard.putBoolean("Right Shooter Encoder present",
-                                         self.tShooterR.isSensorPresent(wpilib.CANTalon.FeedbackDevice.CtreMagEncoder_Absolute) == wpilib.CANTalon.FeedbackDeviceStatus.Present)
+                                         self.tShooterR.isSensorPresent(self.shooterEncoderType) ==
+                                         wpilib.CANTalon.FeedbackDeviceStatus.Present)
         wpilib.SmartDashboard.putBoolean("Left Shooter Encoder present",
-                                         self.tShooterL.isSensorPresent(wpilib.CANTalon.FeedbackDevice.CtreMagEncoder_Absolute) == wpilib.CANTalon.FeedbackDeviceStatus.Present)
+                                         self.tShooterL.isSensorPresent(self.shooterEncoderType) ==
+                                         wpilib.CANTalon.FeedbackDeviceStatus.Present)
 
         wpilib.SmartDashboard.putDouble("Left Shooter Speed", self.tShooterL.getSpeed())
         wpilib.SmartDashboard.putDouble("Right Shooter Speed", self.tShooterR.getSpeed())
-        wpilib.SmartDashboard.putDouble("Target Shooter Speed", self.tShooterL.getSetpoint())
 
         wpilib.SmartDashboard.putNumber("Articulate Angle", self.getAngle())
         wpilib.SmartDashboard.putNumber("Articulate Set Angle", self.articulatePID.getSetpoint())
@@ -131,44 +133,28 @@ class ShooterSubsystem(Subsystem):
         """Set shooter raw power
         :param power: Raw motor power -1 .. 1
         """
-
-        self.tShooterR.changeControlMode(wpilib.CANTalon.ControlMode.PercentVbus)
-        self.tShooterL.changeControlMode(wpilib.CANTalon.ControlMode.PercentVbus)
+        if self.shooterLPID.enabled:
+            self.shooterLPID.disable()
+        if self.shooterRPID.enabled:
+            self.shooterRPID.disable()
 
         self.tShooterL.set(power)
         self.tShooterR.set(power)
 
+    def setVelocity(self, vel):
+        if not self.shooterLPID.enabled:
+            self.shooterLPID.enable()
+        if not self.shooterRPID.enabled:
+            self.shooterRPID.enable()
+
+        self.shooterLPID.setSetpoint(vel)
+        self.shooterRPID.setSetpoint(vel)
+
     def spinUpBatter(self):
-        self.tShooterR.changeControlMode(wpilib.CANTalon.ControlMode.Speed)
-        self.tShooterL.changeControlMode(wpilib.CANTalon.ControlMode.Speed)
-
-        vel = config.batterShootSpeed
-
-        f = config.batterShootKf
-        p = config.batterShootKp
-        self.tShooterL.setF(f)
-        self.tShooterR.setF(f)
-        self.tShooterL.setP(p)
-        self.tShooterR.setP(p)
-
-        self.tShooterL.set(vel)
-        self.tShooterR.set(vel)
+        self.setVelocity(config.batterShootSpeed)
 
     def spinUp(self):
-        self.tShooterR.changeControlMode(wpilib.CANTalon.ControlMode.Speed)
-        self.tShooterL.changeControlMode(wpilib.CANTalon.ControlMode.Speed)
-
-        vel = config.shootSpeed
-
-        f = config.shootKf
-        p = config.shootKp
-        self.tShooterL.setF(f)
-        self.tShooterR.setF(f)
-        self.tShooterL.setP(p)
-        self.tShooterR.setP(p)
-
-        self.tShooterL.set(vel)
-        self.tShooterR.set(vel)
+        self.setVelocity(config.shootSpeed)
 
     def eject(self):
         self.setPower(0.6)
