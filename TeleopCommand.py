@@ -54,8 +54,8 @@ class TeleopCommand(Command):
             spin = 0
 
         if spencerPow != 1:
-            spin *= .5
-        self.driveSubsystem.drive(power, spin)  # todo implement Jaci drive
+            spin *= config.spinFactor
+        self.driveSubsystem.drive(power, spin)
 
         if self.jsLeft.getRawButton(7):
             self.driveSubsystem.resetEncoderCount()
@@ -90,7 +90,7 @@ class TeleopCommand(Command):
         articulatePow = (self.jsManip.getRawAxis(1) + self.jsManip.getRawAxis(3))/-2
         if abs(articulatePow) < 0.05:
             articulatePow = 0
-        self.articulateAngle += articulatePow * 135/50  # degrees/hz. works, idk why
+        self.articulateAngle += articulatePow * config.articulateRate
         self.articulateAngle = clamp(self.articulateAngle, config.articulateAngleLow, config.articulateAngleHigh)
 
         self.shooterSubsystem.setArticulateAngle(self.articulateAngle)

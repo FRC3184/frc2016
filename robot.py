@@ -1,6 +1,7 @@
 import subprocess
 import wpilib
 import config
+import OrphanCommand
 from wpilib.command import Scheduler, CommandGroup
 from DriveSubsystem import DriveSubsystem
 from ShooterSubsystem import ShooterSubsystem
@@ -26,17 +27,15 @@ class MyRobot(wpilib.IterativeRobot):
         self.autonomousCommand = CommandGroup()
 
         self.autoPositionChooser = wpilib.SendableChooser()
-        self.autoPositionChooser.getName = lambda: "Position"
         self.autoPositionChooser.addDefault("Position 1", 1)
         self.autoPositionChooser.addObject("Position 2", 2)
         self.autoPositionChooser.addObject("Position 3", 3)
         self.autoPositionChooser.addObject("Position 4", 4)
         self.autoPositionChooser.addObject("Position 5", 5)
 
-        wpilib.SmartDashboard.putData(self.autoPositionChooser)
+        wpilib.SmartDashboard.putData("PositionChooser", self.autoPositionChooser)
 
         self.autoDefenseChooser = wpilib.SendableChooser()
-        self.autoDefenseChooser.getName = lambda: "Defense"
         self.autoDefenseChooser.addDefault("Nothing", None)
         self.autoDefenseChooser.addObject("Reach", AutoDriveOverDefenseCommand(self, power=.5, reach=True))
         self.autoDefenseChooser.addObject("Rough Terrain", AutoDriveOverDefenseCommand(self, power=.7))
@@ -46,15 +45,14 @@ class MyRobot(wpilib.IterativeRobot):
         self.autoDefenseChooser.addObject("Low Bar", AutoDriveOverDefenseCommand(self, power=.5,
                                                                                  holdpos=config.articulateAngleLow))
 
-        wpilib.SmartDashboard.putData(self.autoDefenseChooser)
+        wpilib.SmartDashboard.putData("DefenseChooser", self.autoDefenseChooser)
 
         self.autoActionChooser = wpilib.SendableChooser()
-        self.autoActionChooser.getName = lambda: "Action"
         self.autoActionChooser.addDefault("Nothing", None)
         self.autoActionChooser.addObject("Aim", AutoTargetCommand(self, shoot=False))
         self.autoActionChooser.addObject("Shoot", AutoTargetCommand(self, shoot=True))
 
-        wpilib.SmartDashboard.putData(self.autoActionChooser)
+        wpilib.SmartDashboard.putData("ActionChooser", self.autoActionChooser)
 
     def teleopPeriodic(self):
         Scheduler.getInstance().run()
@@ -67,8 +65,8 @@ class MyRobot(wpilib.IterativeRobot):
         self.teleopCommand.start()
 
     def autonomousInit(self):
-        defense = self.autoDefenseChooser.getSelected()
-        action = self.autoActionChooser.getSelected()
+        defense = OrphanCommand.wrapWithOrphan(self.autoDefenseChooser.getSelected())
+        action = OrphanCommand.wrapWithOrphan(self.autoActionChooser.getSelected())
         position = self.autoPositionChooser.getSelected()
 
         k = []
