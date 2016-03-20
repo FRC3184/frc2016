@@ -1,5 +1,6 @@
 import wpilib
 import config
+import vision
 from wpilib.command import Command
 
 
@@ -61,14 +62,16 @@ class TeleopCommand(Command):
             self.driveSubsystem.resetEncoderCount()
 
         if self.jsManip.getRawButton(9):
-            self.articulateAngle = 105
+            self.articulateAngle = config.articulateAngleHigh
         if self.jsManip.getRawButton(10):
-            self.articulateAngle = -15
+            self.articulateAngle = config.articulateAngleLow
 
-        if self.jsManip.getRawButton(5):
-            k = self.shooterSubsystem.calculateShooterParams()
-            if k is not None:
-                pitch, _, dist, _ = k
+        k = vision.calculateShooterParams(self.shooterSubsystem.getAngle())
+        if k is not None:
+            pitch, _, dist, _ = k
+            wpilib.SmartDashboard.putNumber("Distance From Tower", dist)
+            wpilib.SmartDashboard.putNumber("Shoot Angle", pitch)
+            if self.jsManip.getRawButton(5):
                 self.articulateAngle = pitch
 
         if self.jsManip.getRawButton(6):

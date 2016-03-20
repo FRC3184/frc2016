@@ -2,6 +2,7 @@ import subprocess
 import wpilib
 import config
 import OrphanCommand
+# import soul
 from wpilib.command import Scheduler, CommandGroup
 from DriveSubsystem import DriveSubsystem
 from ShooterSubsystem import ShooterSubsystem
@@ -75,6 +76,8 @@ class MyRobot(wpilib.IterativeRobot):
         if action is not None:
             action.setPosition(position)
             k += [action]
+        for cmd in k:
+            cmd.setParent(None)
         self.autonomousCommand = AutonomousCommand(k)
         self.autonomousCommand.start()
 

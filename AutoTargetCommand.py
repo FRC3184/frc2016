@@ -1,5 +1,6 @@
 import wpilib
 import config
+import vision
 from wpilib.command import Command
 
 
@@ -18,12 +19,8 @@ class AutoTargetCommand(Command):
         self.driveSubsystem = robot.subsystems['drive']
         self.shooterSubsystem = robot.subsystems['shooter']
         self.shoot = shoot
-        self.position = position
-        self.rate = 0.3
-        if position < 3:
-            self.rotRate = self.rate
-        else:
-            self.rotRate = -self.rate
+        self.rate = 0.4
+        self.setPosition(position)
         self.currentState = self.State.SCANNING
         self.shooterParams = None
         self.delayTime = 0
@@ -50,19 +47,25 @@ class AutoTargetCommand(Command):
             self.shooterSubsystem.kickerOff()
 
         if self.currentState is self.State.SCANNING:
-            k = self.shooterSubsystem.calculateShooterParams()
+            k = vision.calculateShooterParams(self.shooterSubsystem.getAngle())
             if k is not None:
                 self.shooterParams = k
                 pitch, yaw, y, x = self.shooterParams
                 self.shooterSubsystem.setArticulateAngle(pitch)
+
+                self.driveSubsystem.resetGyro()
                 self.turnPID.setSetpoint(yaw)
+                self.turnPID.enable()
+
                 self.currentState = self.State.AIMING
                 return None
-            self.driveSubsystem.driveAngle += self.rotRate
+            self.driveSubsystem.drive(0, self.rotRate)
+
         elif self.currentState is self.State.AIMING:
             self.driveSubsystem.drive(0, self.turnPow)
             if self.shooterSubsystem.articulatePID.onTarget() and self.turnPID.onTarget():
                 self.currentState = (self.State.SHOOTING if self.shoot else self.State.DONE)
+
         elif self.currentState is self.State.SHOOTING:
             self.shooterSubsystem.spinUp()
             if (abs(self.shooterSubsystem.tShooterL.getSpeed()) > config.shootSpeed and

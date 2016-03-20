@@ -3,16 +3,6 @@ import math
 import config
 from wpilib.interfaces import PIDSource
 from wpilib.command import Subsystem
-from networktables import NumberArray, NetworkTable
-
-
-class Contour:
-    def __init__(self, centerX, centerY, area, height, width):
-        self.centerX = centerX
-        self.centerY = centerY
-        self.area = area
-        self.height = height
-        self.width = width
 
 
 class ShooterSubsystem(Subsystem):
@@ -120,15 +110,6 @@ class ShooterSubsystem(Subsystem):
         wpilib.SmartDashboard.putNumber("Articulate Angle", self.getAngle())
         wpilib.SmartDashboard.putNumber("Articulate Set Angle", self.articulatePID.getSetpoint())
 
-        dist = 0
-        params = self.calculateShooterParams()
-        pitch = 0
-        if params is not None:
-            pitch, _, dist, _ = params
-
-        wpilib.SmartDashboard.putNumber("Distance From Tower", dist)
-        wpilib.SmartDashboard.putNumber("Shoot Angle", pitch)
-
     def setPower(self, power):
         """Set shooter raw power
         :param power: Raw motor power -1 .. 1
@@ -183,52 +164,6 @@ class ShooterSubsystem(Subsystem):
 
     def getAngle(self):
         return self.articulateEncoder.getDistance()+self.angleOffset
-
-    def calculateShooterParams(self):
-        hullTable = NetworkTable.getTable("GRIP/goalConvexHulls")
-        centerXs = NumberArray()
-        centerYs = NumberArray()
-        areas = NumberArray()
-        heights = NumberArray()
-        widths = NumberArray()
-        hullTable.retrieveValue("centerX", centerXs)
-        hullTable.retrieveValue("centerY", centerYs)
-        hullTable.retrieveValue("area", areas)
-        hullTable.retrieveValue("height", heights)
-        hullTable.retrieveValue("width", widths)
-
-        avgLen = (len(centerXs) + len(centerYs) + len(areas) + len(heights) + len(widths))/5
-        if round(avgLen) != avgLen:  # It happens. I don't know why.
-            return None
-
-        contours = []
-        for i in range(len(centerXs)):
-            contours.append(Contour(centerXs[i], centerYs[i], areas[i], heights[i], widths[i]))
-        if len(contours) < 1:
-            return None  # Couldn't find any vision targets
-
-        contours = sorted(contours, key=lambda x: x.area, reverse=True)  # Sort contours by area in descending size
-        largest = contours[0]                                            # Maybe use width?
-
-        # Y is long axis of field
-        # X is short axis of field
-
-        distanceY = self.distanceFromTower(largest.width)
-        distanceX = 0  # distance between robot aim plane and center of goal. calculate from centerX and distanceY (in)
-
-        anglePitch = self.angleFromGoalWidth(largest.width)
-        angleYawDelta = math.degrees(math.atan2(distanceY, distanceX))
-
-        return anglePitch, angleYawDelta, distanceY, distanceX
-
-    def angleFromGoalWidth(self, goalw):
-        return -0.000020941*(goalw**3) + 0.0088104*(goalw**2) - 0.95513*goalw + 66.004
-
-    def distanceFromTower(self, goalw):
-        return 0.0068478*(goalw**2) - 2.9095*goalw + 346.76
-
-    def shootAngle(self, distance):
-        return 0.001458*(distance**2) - 0.48272*distance + 75.393
 
     def isHittingLow(self):
         return not self.limLow.get()
