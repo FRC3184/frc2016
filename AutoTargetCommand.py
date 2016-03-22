@@ -2,9 +2,10 @@ import wpilib
 import config
 import vision
 from wpilib.command import Command
+from OrphanCommand import OrphanCommand
 
 
-class AutoTargetCommand(Command):
+class AutoTargetCommand(OrphanCommand):
     class State:
         SCANNING = 0
         AIMING = 1
@@ -25,8 +26,11 @@ class AutoTargetCommand(Command):
         self.shooterParams = None
         self.delayTime = 0
         self.turnPow = 0
-        self.turnPID = wpilib.PIDController(Kp=0.05, Ki=0.001, Kd=0, source=self.driveSubsystem.gyro.xGyro,
+        self.turnPID = wpilib.PIDController(Kp=0.0025, Ki=0.000, Kd=0, source=self.driveSubsystem.gyro.getAngleX,
                                             output=self.setTurnPow)
+        self.turnPID.setAbsoluteTolerance(1)
+        self.turnPID.setOutputRange(-1, 1)
+        self.turnPID.setInputRange(-180, 180)
 
     def setTurnPow(self, turn):
         self.turnPow = turn
@@ -39,7 +43,7 @@ class AutoTargetCommand(Command):
             self.rotRate = -self.rate
 
     def initialize(self):
-        self.shooterSubsystem.setArticulateAngle(45)
+        self.shooterSubsystem.setArticulateAngle(60)
 
     def execute(self):
         if self.currentState is not self.State.SHOOTING:
@@ -53,7 +57,9 @@ class AutoTargetCommand(Command):
                 pitch, yaw, y, x = self.shooterParams
                 self.shooterSubsystem.setArticulateAngle(pitch)
 
+                wpilib.SmartDashboard.putNumber("Azimuth", yaw)
                 self.driveSubsystem.resetGyro()
+                self.driveSubsystem.gyro.angleX = 0
                 self.turnPID.setSetpoint(yaw)
                 self.turnPID.enable()
 
@@ -63,6 +69,7 @@ class AutoTargetCommand(Command):
 
         elif self.currentState is self.State.AIMING:
             self.driveSubsystem.drive(0, self.turnPow)
+            wpilib.SmartDashboard.putNumber("Gyro Angle X", self.driveSubsystem.gyro.angleX)
             if self.shooterSubsystem.articulatePID.onTarget() and self.turnPID.onTarget():
                 self.currentState = (self.State.SHOOTING if self.shoot else self.State.DONE)
 

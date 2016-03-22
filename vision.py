@@ -36,18 +36,18 @@ def calculateShooterParams(armAngle):
         return None  # Couldn't find any vision targets
 
     contours = sorted(contours, key=lambda x: x.area, reverse=True)  # Sort contours by area in descending size
-    largest = contours[0]                                            # Maybe use width?
+    largest = contours[0]          # Maybe use width?
+
+    dy = (config.image_height / 2) - largest.centerY
 
     # Calculations taken from TowerTracker
-    y = largest.centerY + largest.height / 2.0
-    y = -((2*(y/config.image_height))-1)
-    distance = (config.top_target_height - calculateCameraHeight(armAngle)) / \
-               (math.tan(math.radians(y * config.vertical_fov / 2.0 + calculateCameraAngle(armAngle))))
-    x = largest.centerX + largest.width / 2.0
-    x = (2 * (x / config.image_width)) - 1
-    azimuth = x*config.horiz_fov / 2.0
 
-    return shootAngle(distance), azimuth, distance, 0
+    x = largest.centerX
+    x = (2 * (x / config.image_width))
+    azimuth = (x*config.horiz_fov / 2.0) - 30
+
+    dist = distanceFromTower(largest.width)
+    return shootAngle(dist), azimuth, dist, 0
 
 
 def calculateCameraAngle(armAngle):
@@ -63,6 +63,7 @@ def angleFromGoalWidth(goalw):
 
 
 def distanceFromTower(goalw):
+    goalw *= 2
     return 0.0068478*(goalw**2) - 2.9095*goalw + 346.76
 
 

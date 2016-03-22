@@ -36,7 +36,6 @@ class TeleopCommand(Command):
 
     def initialize(self):
         super().initialize()
-        self.shooterSubsystem.updatePID()
 
     def execute(self):
         super().execute()
@@ -68,9 +67,10 @@ class TeleopCommand(Command):
 
         k = vision.calculateShooterParams(self.shooterSubsystem.getAngle())
         if k is not None:
-            pitch, _, dist, _ = k
+            pitch, yaw, dist, _ = k
             wpilib.SmartDashboard.putNumber("Distance From Tower", dist)
             wpilib.SmartDashboard.putNumber("Shoot Angle", pitch)
+            wpilib.SmartDashboard.putNumber("Azimuth", yaw)
             if self.jsManip.getRawButton(5):
                 self.articulateAngle = pitch
 

@@ -2,9 +2,10 @@ import wpilib
 import config
 from wpilib.command import Command
 from wpilib.interfaces import PIDSource
+from OrphanCommand import OrphanCommand
 
 
-class AutoDriveOverDefenseCommand(Command):
+class AutoDriveOverDefenseCommand(OrphanCommand):
     def isFinished(self):
         return False
 

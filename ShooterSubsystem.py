@@ -27,17 +27,15 @@ class ShooterSubsystem(Subsystem):
         self.tShooterL.setFeedbackDevice(self.shooterEncoderType)
         self.tShooterR.setFeedbackDevice(self.shooterEncoderType)
 
-        self.shooterLPID = wpilib.PIDController(Kp=config.shooterKp, Ki=0, Kd=0, Kf=config.shooterKf,
-                                                source=self.tShooterL.getSpeed,
-                                                output=self.tShooterL.set, period=20)  # Fast PID Loop
-        self.shooterLPID.setPIDSourceType(PIDSource.PIDSourceType.kRate)
+        self.shooterLPID = wpilib.PIDController(Kp=config.shooterKp, Ki=config.shooterKi, Kd=0, kf=config.shooterKf,
+                                                source=lambda: -self.tShooterL.getSpeed(),
+                                                output=self.tShooterL.set, period=20/1000)  # Fast PID Loop
         self.shooterLPID.setOutputRange(-1, 1)
         self.shooterLPID.setInputRange(-18700/3, 18700/3)
 
-        self.shooterRPID = wpilib.PIDController(Kp=config.shooterKp, Ki=0, Kd=0, Kf=config.shooterKf,
+        self.shooterRPID = wpilib.PIDController(Kp=config.shooterKp, Ki=config.shooterKi, Kd=0, kf=config.shooterKf,
                                                 source=self.tShooterR.getSpeed,
-                                                output=self.tShooterR.set, period=20)  # Fast PID Loop
-        self.shooterRPID.setPIDSourceType(PIDSource.PIDSourceType.kRate)
+                                                output=self.tShooterR.set, period=20/1000)  # Fast PID Loop
         self.shooterRPID.setOutputRange(-1, 1)
         self.shooterRPID.setInputRange(-18700/3, 18700/3)
 
@@ -50,7 +48,7 @@ class ShooterSubsystem(Subsystem):
         self.articulateEncoder.reset()
 
         self.vArticulate = wpilib.VictorSP(1)
-        self.articulateEncoder.setDistancePerPulse((1440/(360*4)) * 1.5)  # Clicks per degree / Magic numbers
+        self.articulateEncoder.setDistancePerPulse((1024/(360*4)) * 1.5)  # Clicks per degree / Magic numbers
         self.articulatePID = wpilib.PIDController(Kp=config.articulateKp, Ki=config.articulateKi, Kd=config.articulateKd,
                                                   source=self.getAngle,
                                                   output=self.updateArticulate)
@@ -123,10 +121,8 @@ class ShooterSubsystem(Subsystem):
         self.tShooterR.set(power)
 
     def setVelocity(self, vel):
-        if not self.shooterLPID.enabled:
-            self.shooterLPID.enable()
-        if not self.shooterRPID.enabled:
-            self.shooterRPID.enable()
+        self.shooterLPID.enable()
+        self.shooterRPID.enable()
 
         self.shooterLPID.setSetpoint(vel)
         self.shooterRPID.setSetpoint(vel)
@@ -150,6 +146,8 @@ class ShooterSubsystem(Subsystem):
         self.vIntake.set(intakeBarPow)
 
     def idle(self):
+        self.shooterLPID.disable()
+        self.shooterRPID.disable()
         self.vIntake.set(0)
         self.tShooterL.set(0)
         self.tShooterR.set(0)

@@ -66,8 +66,8 @@ class MyRobot(wpilib.IterativeRobot):
         self.teleopCommand.start()
 
     def autonomousInit(self):
-        defense = OrphanCommand.wrapWithOrphan(self.autoDefenseChooser.getSelected())
-        action = OrphanCommand.wrapWithOrphan(self.autoActionChooser.getSelected())
+        defense = self.autoDefenseChooser.getSelected()
+        action = self.autoActionChooser.getSelected()
         position = self.autoPositionChooser.getSelected()
 
         k = []

@@ -29,7 +29,7 @@ class DriveSubsystem(Subsystem):
         self.encRightEncoder.setDistancePerPulse(encDPP)
         self.encLeftEncoder.setDistancePerPulse(encDPP)
 
-        wpilib.Timer.delay(50/1000)
+        wpilib.Timer.delay(2000/1000)
         self.gyro = ITG3200.ITG3200(wpilib.I2C.Port.kOnboard)
         wpilib.Timer.delay(50/1000)
         self.gyro.init()
