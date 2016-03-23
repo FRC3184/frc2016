@@ -46,7 +46,7 @@ class DriveSubsystem(Subsystem):
         turnPow = turn
         if (abs(self.lastThrottle) < 0.1 and abs(forward) > 0.1) or abs(turn) > 0.1:
             self.startAngle = self.gyro.getAngleX()
-        if abs(turn) < 0.1 and abs(forward) > 0.1 and abs(self.lastTurn) < 0.1:
+        if config.useTurnCorrect and abs(turn) < 0.1 and abs(forward) > 0.1 and abs(self.lastTurn) < 0.1:
             turnPow = (self.startAngle - self.gyro.getAngleX())*config.driveP
 
         self.rdRobotDrive.arcadeDrive(forward, turnPow)

@@ -15,7 +15,8 @@ class AutoDriveOverDefenseCommand(OrphanCommand):
         PAST_PLATFORM = 2
         DONE = 10
 
-    def __init__(self, robot, power=.7, dist=(3*12), holdpos=config.articulateAngleHigh, reach=False):
+    def __init__(self, robot, power=.7, dist=(3*12), holdpos=config.articulateAngleHigh, reach=False,
+                 state=State.NOT_HIT_PLATFORM, delay=0):
         super().__init__()
 
         self.requires(robot.subsystems['drive'])
@@ -26,15 +27,18 @@ class AutoDriveOverDefenseCommand(OrphanCommand):
         self.isFinished = lambda: False
         self.reach = reach
         self.turnPow = 0
-        self.currentState = self.State.NOT_HIT_PLATFORM
+        self.currentState = state
         self.drivePower = power
         self.dist = dist
         self.holdpos = holdpos
+        self.delay = delay
+        self.delayCount = 0
 
     def initialize(self):
         self.driveSubystem.resetEncoderCount()
         self.driveSubystem.resetGyro()  # only reset axis? or face straight
         self.driveSubystem.gyro.angleY = 0
+        self.delayCount = 0
 
         self.shooterSubsystem.setArticulateAngle(self.holdpos)
 
@@ -47,11 +51,17 @@ class AutoDriveOverDefenseCommand(OrphanCommand):
         self.driveSubystem.updateSmartDashboardValues()
         self.shooterSubsystem.updateSmartDashboardValues()
 
+        if self.delayCount < self.delay:
+            self.delayCount += 20/1000
+            self.driveSubystem.drive(0, 0)
+            return None
+
         if self.currentState is self.State.NOT_HIT_PLATFORM:
             self.driveSubystem.drive(self.drivePower, 0)
 
             if anglePitch > 10:
                 self.currentState = (self.State.ON_PLATFORM if not self.reach else self.State.DONE)
+                #self.driveSubystem.gyro.angleY = 0
 
         elif self.currentState is self.State.ON_PLATFORM:
             self.driveSubystem.drive(self.drivePower, 0)

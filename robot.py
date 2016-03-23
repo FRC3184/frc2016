@@ -39,12 +39,26 @@ class MyRobot(wpilib.IterativeRobot):
         self.autoDefenseChooser = wpilib.SendableChooser()
         self.autoDefenseChooser.addDefault("Nothing", None)
         self.autoDefenseChooser.addObject("Reach", AutoDriveOverDefenseCommand(self, power=.5, reach=True))
-        self.autoDefenseChooser.addObject("Rough Terrain", AutoDriveOverDefenseCommand(self, power=.7))
-        self.autoDefenseChooser.addObject("Rock Wall", AutoDriveOverDefenseCommand(self, power=.9))
-        self.autoDefenseChooser.addObject("Moat", AutoDriveOverDefenseCommand(self, power=.9))
-        self.autoDefenseChooser.addObject("Ramparts", AutoDriveOverDefenseCommand(self, power=.7))
-        self.autoDefenseChooser.addObject("Low Bar", AutoDriveOverDefenseCommand(self, power=.5,
-                                                                                 holdpos=config.articulateAngleLow))
+        self.autoDefenseChooser.addObject("Rough Terrain", AutoDriveOverDefenseCommand(self, power=.7, dist=200,
+                                                                                       state=AutoDriveOverDefenseCommand
+                                                                                       .State.PAST_PLATFORM))
+        self.autoDefenseChooser.addObject("Rock Wall", AutoDriveOverDefenseCommand(self, power=-.9, dist=200, delay=3,
+                                                                                   holdpos=70,
+                                                                                   state=AutoDriveOverDefenseCommand
+                                                                                   .State.PAST_PLATFORM))
+        self.autoDefenseChooser.addObject("Moat", AutoDriveOverDefenseCommand(self, power=-.9, dist=270,
+                                                                              state=AutoDriveOverDefenseCommand
+                                                                              .State.PAST_PLATFORM))
+        self.autoDefenseChooser.addObject("Ramparts", AutoDriveOverDefenseCommand(self, power=-.7,
+                                                                                  dist=200,
+                                                                                  holdpos=config.articulateAngleHigh,
+                                                                                  state=AutoDriveOverDefenseCommand.State
+                                                                                  .PAST_PLATFORM))
+        self.autoDefenseChooser.addObject("Low Bar", AutoDriveOverDefenseCommand(self, power=.6,
+                                                                                 dist=200,
+                                                                                 holdpos=config.articulateAngleLow,
+                                                                                 state=AutoDriveOverDefenseCommand.State
+                                                                                 .PAST_PLATFORM))
 
         wpilib.SmartDashboard.putData("DefenseChooser", self.autoDefenseChooser)
 

@@ -1,4 +1,5 @@
 isPracticeBot = True
+useTurnCorrect = False
 
 articulateAngleLow = -15
 articulateAngleHigh = 105
