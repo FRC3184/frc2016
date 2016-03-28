@@ -62,7 +62,7 @@ class TeleopCommand(Command):
 
         if self.jsManip.getRawButton(9):
             self.articulateAngle = config.articulateAngleHigh
-        if self.jsManip.getRawButton(10):
+        elif self.jsManip.getRawButton(10):
             self.articulateAngle = config.articulateAngleLow
 
         k = vision.calculateShooterParams(self.shooterSubsystem.getAngle())
@@ -78,6 +78,12 @@ class TeleopCommand(Command):
             self.shooterSubsystem.kickerOn()
         else:
             self.shooterSubsystem.kickerOff()
+
+        if self.jsManip.getRawButton(7):
+            self.shooterSubsystem.articulatePID.disable()
+            self.shooterSubsystem.updateArticulate(self.jsManip.getY())
+        else:
+            self.shooterSubsystem.articulatePID.enable()
 
         if self.jsManip.getRawButton(1):
             self.shooterSubsystem.spinUp()

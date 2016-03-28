@@ -1,8 +1,8 @@
-isPracticeBot = True
+isPracticeBot = False
 useTurnCorrect = False
 
 articulateAngleLow = -15
-articulateAngleHigh = 105
+articulateAngleHigh = 108
 
 articulateKp = 0.011
 articulateKi = 0.001
@@ -10,12 +10,16 @@ articulateKd = 0.013
 
 articulateRate = 135/50
 
-batterShootSpeed = 4800
+batterShootSpeed = 4000 if not isPracticeBot else 4100
 shootSpeed = 5800
 
-shooterKp = 0.00025
-shooterKi = 0.00001
-shooterKf = 3/18700
+shooterLKp = 0.00023
+shooterLKi = 0.00001
+shooterLKf = 3/18700
+
+shooterRKp = 0.00023
+shooterRKi = 0.00001
+shooterRKf = 3/18700
 
 driveP = 0.1
 spinFactor = 0.7

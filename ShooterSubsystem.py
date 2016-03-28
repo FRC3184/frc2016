@@ -20,21 +20,25 @@ class ShooterSubsystem(Subsystem):
         self.tShooterR = wpilib.CANTalon(5)
 
         self.tShooterL.setInverted(not config.isPracticeBot)  # True for comp bot, false for practice
-        self.tShooterR.setInverted(not config.isPracticeBot)  # True for comp bot, false for practice
+        self.tShooterR.setInverted(config.isPracticeBot)  # True for comp bot, false for practice
 
         self.shooterEncoderType = wpilib.CANTalon.FeedbackDevice.CtreMagEncoder_Relative
 
         self.tShooterL.setFeedbackDevice(self.shooterEncoderType)
         self.tShooterR.setFeedbackDevice(self.shooterEncoderType)
 
-        self.shooterLPID = wpilib.PIDController(Kp=config.shooterKp, Ki=config.shooterKi, Kd=0, kf=config.shooterKf,
-                                                source=lambda: -self.tShooterL.getSpeed(),
+        self.shooterLPID = wpilib.PIDController(Kp=config.shooterLKp, Ki=config.shooterLKi, Kd=0,
+                                                kf=config.shooterLKf,
+                                                source=lambda: self.tShooterL.getSpeed() *
+                                                (-1 if config.isPracticeBot else 1),
                                                 output=self.tShooterL.set, period=20/1000)  # Fast PID Loop
         self.shooterLPID.setOutputRange(-1, 1)
         self.shooterLPID.setInputRange(-18700/3, 18700/3)
 
-        self.shooterRPID = wpilib.PIDController(Kp=config.shooterKp, Ki=config.shooterKi, Kd=0, kf=config.shooterKf,
-                                                source=self.tShooterR.getSpeed,
+        self.shooterRPID = wpilib.PIDController(Kp=config.shooterRKp, Ki=config.shooterRKi, Kd=0.000,
+                                                kf=config.shooterRKf,
+                                                source=lambda: self.tShooterR.getSpeed() *
+                                                (-1 if not config.isPracticeBot else 1),
                                                 output=self.tShooterR.set, period=20/1000)  # Fast PID Loop
         self.shooterRPID.setOutputRange(-1, 1)
         self.shooterRPID.setInputRange(-18700/3, 18700/3)
@@ -48,7 +52,8 @@ class ShooterSubsystem(Subsystem):
         self.articulateEncoder.reset()
 
         self.vArticulate = wpilib.VictorSP(1)
-        self.articulateEncoder.setDistancePerPulse((1024/(360*4)) * 1.5)  # Clicks per degree / Magic numbers
+        self.articulateEncoder.setDistancePerPulse(
+            ((1024 if config.isPracticeBot else 1440)/(360*4)) * 1.5)  # Clicks per degree / Magic numbers
         self.articulatePID = wpilib.PIDController(Kp=config.articulateKp, Ki=config.articulateKi, Kd=config.articulateKd,
                                                   source=self.getAngle,
                                                   output=self.updateArticulate)
@@ -89,10 +94,10 @@ class ShooterSubsystem(Subsystem):
             self.vArticulate.set(articulatePow)
 
     def kickerOn(self):
-        self.sKicker.set(0)
+        self.sKicker.set(.3 if not config.isPracticeBot else 0)
 
     def kickerOff(self):
-        self.sKicker.set(.3)
+        self.sKicker.set(.6 if not config.isPracticeBot else .3)
 
     def updateSmartDashboardValues(self):
         wpilib.SmartDashboard.putBoolean("Right Shooter Encoder present",
@@ -135,12 +140,12 @@ class ShooterSubsystem(Subsystem):
 
     def eject(self):
         self.setPower(0.6)
-        intakeBarPow = -1.0
+        intakeBarPow = 1.0 * (-1 if config.isPracticeBot else 1)
 
         self.vIntake.set(intakeBarPow)
 
     def intake(self):
-        intakeBarPow = 1.0
+        intakeBarPow = -1.0 * (-1 if config.isPracticeBot else 1)
 
         self.setPower(-0.6)
         self.vIntake.set(intakeBarPow)
@@ -167,4 +172,4 @@ class ShooterSubsystem(Subsystem):
         return not self.limLow.get()
 
     def isHittingHigh(self):
-        return self.limHigh.get()
+        return (self.limHigh.get()) if config.isPracticeBot else (not self.limHigh.get())

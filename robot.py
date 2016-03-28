@@ -42,8 +42,8 @@ class MyRobot(wpilib.IterativeRobot):
         self.autoDefenseChooser.addObject("Rough Terrain", AutoDriveOverDefenseCommand(self, power=.7, dist=200,
                                                                                        state=AutoDriveOverDefenseCommand
                                                                                        .State.PAST_PLATFORM))
-        self.autoDefenseChooser.addObject("Rock Wall", AutoDriveOverDefenseCommand(self, power=-.9, dist=200, delay=3,
-                                                                                   holdpos=70,
+        self.autoDefenseChooser.addObject("Rock Wall", AutoDriveOverDefenseCommand(self, power=.9, dist=200,
+                                                                                   holdpos=config.articulateAngleHigh,
                                                                                    state=AutoDriveOverDefenseCommand
                                                                                    .State.PAST_PLATFORM))
         self.autoDefenseChooser.addObject("Moat", AutoDriveOverDefenseCommand(self, power=-.9, dist=270,

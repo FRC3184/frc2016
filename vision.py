@@ -13,17 +13,24 @@ class Contour:
 
 
 def calculateShooterParams(armAngle):
-    hullTable = NetworkTable.getTable("GRIP/goalConvexHulls")
+    hullTable = None
+    try:
+        hullTable = NetworkTable.getTable("GRIP/goalConvexHulls")
+    except KeyError:
+        return None
     centerXs = NumberArray()
     centerYs = NumberArray()
     areas = NumberArray()
     heights = NumberArray()
     widths = NumberArray()
-    hullTable.retrieveValue("centerX", centerXs)
-    hullTable.retrieveValue("centerY", centerYs)
-    hullTable.retrieveValue("area", areas)
-    hullTable.retrieveValue("height", heights)
-    hullTable.retrieveValue("width", widths)
+    try:
+        hullTable.retrieveValue("centerX", centerXs)
+        hullTable.retrieveValue("centerY", centerYs)
+        hullTable.retrieveValue("area", areas)
+        hullTable.retrieveValue("height", heights)
+        hullTable.retrieveValue("width", widths)
+    except KeyError:
+        return None
 
     avgLen = (len(centerXs) + len(centerYs) + len(areas) + len(heights) + len(widths))/5
     if round(avgLen) != avgLen:  # It happens. I don't know why.
