@@ -3,6 +3,8 @@ import wpilib
 import config
 import OrphanCommand
 # import soul
+
+from DataLogger import DataLogger
 from wpilib.command import Scheduler, CommandGroup
 from DriveSubsystem import DriveSubsystem
 from ShooterSubsystem import ShooterSubsystem
@@ -17,6 +19,8 @@ class MyRobot(wpilib.IterativeRobot):
         super().__init__()
         self.pdp = wpilib.PowerDistributionPanel()
         self.subsystems = {}
+        self.datalogger = DataLogger(logfile=open("robot.log", mode='a'),
+                                     curtime=wpilib.DriverStation.getInstance().getMatchTime)
 
     def robotInit(self):
         subprocess.Popen("/home/lvuser/grip", shell=True)  # Start GRIP process
@@ -69,11 +73,15 @@ class MyRobot(wpilib.IterativeRobot):
 
         wpilib.SmartDashboard.putData("ActionChooser", self.autoActionChooser)
 
+        self.datalogger.ready()
+
     def teleopPeriodic(self):
         Scheduler.getInstance().run()
+        self.datalogger.log_data()
 
     def autonomousPeriodic(self):
         Scheduler.getInstance().run()
+        self.datalogger.log_data()
 
     def teleopInit(self):
         self.autonomousCommand.cancel()
