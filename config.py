@@ -30,7 +30,7 @@ diag_fov = 68.5
 horiz_fov = 59.7029  # calculated based on diagonal
 vertical_fov = 33.5829
 
-top_target_height = 97  # inches
+center_target_height = 97  # inches
 camera_angle_offset = -23.5
 arm_len_to_camera = 12
-arm_height = 10
+arm_height = 11

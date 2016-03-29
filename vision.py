@@ -54,7 +54,12 @@ def calculateShooterParams(armAngle):
     azimuth = (x*config.horiz_fov / 2.0) - 30
 
     dist = distanceFromTower(largest.width)
-    return shootAngle(dist), azimuth, dist, 0
+    return trigShootAngle(armAngle, dist), azimuth, dist, 0
+
+
+def trigShootAngle(armAngle, dist):
+    u = config.arm_len_to_camera * math.degrees(math.sin(armAngle))
+    return math.degrees(math.atan2(config.center_target_height - config.arm_height - u, dist))
 
 
 def calculateCameraAngle(armAngle):
