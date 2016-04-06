@@ -32,6 +32,11 @@ diag_fov = 68.5
 horiz_fov = 59.7029  # calculated based on diagonal
 vertical_fov = 33.5829
 
+targeting_max_error = 3
+targeting_zone1_size
+
+highgoal_outerworks_angle = 41.0
+
 center_target_height = 97  # inches
 camera_angle_offset = -23.5
 arm_len_to_camera = 12

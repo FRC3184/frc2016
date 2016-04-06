@@ -30,3 +30,6 @@ class DataLogger:
         for _, v in self.dataSources:
             print(", {}".format(v()), end="", file=self.logfile)
         print(file=self.logfile)
+
+    def event(self, text):
+        print("[Event] {}, {}".format(self.curtime(), text))

@@ -66,22 +66,24 @@ class AutoTargetCommand(OrphanCommand):
                 wpilib.SmartDashboard.putNumber("Azimuth", yaw)
                 wpilib.SmartDashboard.putNumber("CenterX", center_x)
                 if self.do_aim:
-                    if center_x < self.aim_value-3 and self.seekState < 2:
+                    if center_x < self.aim_value-config.targeting_max_error and self.seekState < 2:
                         if self.seekCenterX != center_x:
                             self.seekCenterX = center_x
                             if self.seekState == 0:
                                 self.seekState = 1
                                 self.timer.reset()
                                 self.timer.start()
-                    elif center_x > self.aim_value+3 and self.seekState < 2:
+                    elif center_x > self.aim_value+config.targeting_max_error and self.seekState < 2:
                         if self.seekCenterX != center_x:
                             self.seekCenterX = center_x
                             if self.seekState == 0:
                                 self.seekState = 1
                                 self.timer.reset()
                                 self.timer.start()
-                    elif self.aim_value-3 <= center_x <= self.aim_value+3:
+                    elif self.aim_value-config.targeting_max_error <= \
+                            center_x <= self.aim_value+config.targeting_max_error:
                         if self.seekState != 2:
+                            self.seekState = 2
                             if self.shoot:
                                 self.currentState = self.State.SHOOTING
                             else:
@@ -96,13 +98,13 @@ class AutoTargetCommand(OrphanCommand):
         
             if self.do_aim:
                 if self.seekState == 1:
-                    if self.timer.get() > self.timer_var: #self.driveSubsystem.drive(0, 0)
+                    if self.timer.get() > self.timer_var:
                         if self.timer.get() > self.timer_var+.5:
                             self.seekState = 0
                             self.timer.stop()
                             self.timer.reset()
                     else:
-                        self.articulateAngle = 41.0
+                        self.shooterSubsystem.setArticulateAngle(config.highgoal_outerworks_angle)
                         if self.seekCenterX < self.aim_value-15:
                             if self.seekCenterX < 0:
                                 self.timer_var = 0.1

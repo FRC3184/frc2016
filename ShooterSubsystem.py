@@ -10,6 +10,7 @@ class ShooterSubsystem(Subsystem):
         super().__init__()
 
         self.pdp = robot.pdp
+        self.datalogger = robot.datalogger
 
         self.currentAverageValues = 20
         self.armCurrentValues = [0]*self.currentAverageValues
@@ -69,6 +70,13 @@ class ShooterSubsystem(Subsystem):
         self.limLow = wpilib.DigitalInput(6)
         self.limHigh = wpilib.DigitalInput(7)
 
+        self.lastKicker = False
+
+        # Data logger
+        self.datalogger.add_data_source("Left Shooter Motor", self.tShooterL.getSpeed)
+        self.datalogger.add_data_source("Right Shooter Motor", self.tShooterR.getSpeed)
+        self.datalogger.add_data_source("Articulate Angle", self.getAngle)
+
     def updateArticulate(self, articulatePow):
         current = self.pdp.getCurrent(1)  # Channel for test bot
         self.armCurrentValues += [current]
@@ -95,9 +103,13 @@ class ShooterSubsystem(Subsystem):
 
     def kickerOn(self):
         self.sKicker.set(.3 if not config.isPracticeBot else 0)
+        if not self.lastKicker:
+            self.datalogger.event("Fire!")
+        self.lastKicker = True
 
     def kickerOff(self):
         self.sKicker.set(.6 if not config.isPracticeBot else .3)
+        self.lastKicker = False
 
     def updateSmartDashboardValues(self):
         wpilib.SmartDashboard.putBoolean("Right Shooter Encoder present",
