@@ -21,19 +21,16 @@ class AutoTargetCommand(OrphanCommand):
         self.shooterSubsystem = robot.subsystems['shooter']
         self.shoot = shoot
         self.rate = 0.4
+        self.delayTime = 0
         self.setPosition(position)
         self.currentState = self.State.SCANNING
         self.shooterParams = None
-        self.delayTime = 0
-        self.turnPow = 0
-        self.turnPID = wpilib.PIDController(Kp=0.0025, Ki=0.000, Kd=0, source=self.driveSubsystem.gyro.getAngleX,
-                                            output=self.setTurnPow)
-        self.turnPID.setAbsoluteTolerance(1)
-        self.turnPID.setOutputRange(-1, 1)
-        self.turnPID.setInputRange(-180, 180)
-
-    def setTurnPow(self, turn):
-        self.turnPow = turn
+        
+        self.timer_var = 0.2
+        self.aim_value = wpilib.SmartDashboard.getNumber("Aim at", 0)
+        self.seekCenterX = -1.1
+        self.seekState = 0
+        self.timer = wpilib.Timer()
 
     def setPosition(self, position):
         self.position = position
@@ -53,30 +50,91 @@ class AutoTargetCommand(OrphanCommand):
         if self.currentState is self.State.SCANNING:
             k = vision.calculateShooterParams(self.shooterSubsystem.getAngle())
             if k is not None:
-                self.shooterParams = k
-                pitch, yaw, y, x = self.shooterParams
-                self.shooterSubsystem.setArticulateAngle(pitch)
-
-                wpilib.SmartDashboard.putNumber("Azimuth", yaw)
-                self.driveSubsystem.resetGyro()
-                self.driveSubsystem.gyro.angleX = 0
-                self.turnPID.setSetpoint(yaw)
-                self.turnPID.enable()
-
                 self.currentState = self.State.AIMING
                 return None
             self.driveSubsystem.drive(0, self.rotRate)
 
         elif self.currentState is self.State.AIMING:
-            self.driveSubsystem.drive(0, self.turnPow)
-            wpilib.SmartDashboard.putNumber("Gyro Angle X", self.driveSubsystem.gyro.angleX)
-            if self.shooterSubsystem.articulatePID.onTarget() and self.turnPID.onTarget():
-                self.currentState = (self.State.SHOOTING if self.shoot else self.State.DONE)
+            self.aim_value = wpilib.SmartDashboard.getNumber("Aim at", 155)
+            self.do_aim = True            
+            
+            k = vision.calculateShooterParams(self.shooterSubsystem.getAngle())
+            if k is not None:
+                pitch, yaw, dist, center_x, _ = k
+                wpilib.SmartDashboard.putNumber("Distance From Tower", dist)
+                wpilib.SmartDashboard.putNumber("Shoot Angle", pitch)
+                wpilib.SmartDashboard.putNumber("Azimuth", yaw)
+                wpilib.SmartDashboard.putNumber("CenterX", center_x)
+                if self.do_aim:
+                    if center_x < self.aim_value-3 and self.seekState < 2:
+                        if self.seekCenterX != center_x:
+                            self.seekCenterX = center_x
+                            if self.seekState == 0:
+                                self.seekState = 1
+                                self.timer.reset()
+                                self.timer.start()
+                    elif center_x > self.aim_value+3 and self.seekState < 2:
+                        if self.seekCenterX != center_x:
+                            self.seekCenterX = center_x
+                            if self.seekState == 0:
+                                self.seekState = 1
+                                self.timer.reset()
+                                self.timer.start()
+                    elif self.aim_value-3 <= center_x <= self.aim_value+3:
+                        if self.seekState != 2:
+                            if self.shoot:
+                                self.currentState = self.State.SHOOTING
+                            else:
+                                self.currentState = self.State.DONE
+                            self.timer.stop()
+                            self.timer.reset()
+                            self.timer.start()
+                    else:
+                        self.seekState = 0
+            else:
+                wpilib.SmartDashboard.putNumber("CenterX", -1.1)
+        
+            if self.do_aim:
+                if self.seekState == 1:
+                    if self.timer.get() > self.timer_var: #self.driveSubsystem.drive(0, 0)
+                        if self.timer.get() > self.timer_var+.5:
+                            self.seekState = 0
+                            self.timer.stop()
+                            self.timer.reset()
+                    else:
+                        self.articulateAngle = 41.0
+                        if self.seekCenterX < self.aim_value-15:
+                            if self.seekCenterX < 0:
+                                self.timer_var = 0.1
+                            else:
+                                self.timer_var = 0.2
+                            self.driveSubsystem.drive(0, -.5)
+                        elif self.seekCenterX < self.aim_value-3:
+                            if self.seekCenterX < 0:
+                                self.timer_var = 0.1
+                            else:
+                                self.timer_var = 0.2
+                            self.driveSubsystem.drive(0, -.4)
+                        elif self.seekCenterX > self.aim_value+15:
+                            self.timer_var = 0.2
+                            self.driveSubsystem.drive(0, .5)
+                        elif self.seekCenterX > self.aim_value+3:
+                            self.timer_var = 0.1
+                            self.driveSubsystem.drive(0, .4)
+                        else:
+                            self.driveSubsystem.drive(0, 0)
+            else:
+                self.seekState = 0
+                self.seekCenterX = -1.1
+                self.timer.stop()
+                self.timer.reset()
+        
+            if self.do_aim:
+                self.seekCenterX = self.seekCenterX
 
         elif self.currentState is self.State.SHOOTING:
             self.shooterSubsystem.spinUp()
-            if (abs(self.shooterSubsystem.tShooterL.getSpeed()) > config.shootSpeed and
-               abs(self.shooterSubsystem.tShooterR.getSpeed()) > config.shootSpeed):
+            if self.timer.get() > 3.5:
                 self.shooterSubsystem.kickerOn()
                 self.delayTime += 20/1000
                 if self.delayTime >= 1:

@@ -24,8 +24,10 @@ class TeleopCommand(Command):
 
         self.requires(subsystems['drive'])
         self.requires(subsystems['shooter'])
+        self.requires(subsystems['tomahawk'])
         self.driveSubsystem = subsystems['drive']
         self.shooterSubsystem = subsystems['shooter']
+        self.tomahawkSubsystem = subsystems['tomahawk']
         self.jsLeft = wpilib.Joystick(0)
         self.jsRight = wpilib.Joystick(1)
         self.jsManip = wpilib.Joystick(2)
@@ -33,6 +35,12 @@ class TeleopCommand(Command):
         self.articulateAngle = 0
 
         self.oneeightycd = 0
+
+        self.timer_var = 0.2
+        self.aim_value = wpilib.SmartDashboard.getNumber("Aim at", 0)
+        self.seekCenterX = -1.1
+        self.seekState = 0
+        self.timer = wpilib.Timer()
 
     def initialize(self):
         super().initialize()
@@ -65,15 +73,16 @@ class TeleopCommand(Command):
         elif self.jsManip.getRawButton(10):
             self.articulateAngle = config.articulateAngleLow
 
-        k = vision.calculateShooterParams(self.shooterSubsystem.getAngle())
-        if k is not None:
-            pitch, yaw, dist, _ = k
-            wpilib.SmartDashboard.putNumber("Distance From Tower", dist)
-            wpilib.SmartDashboard.putNumber("Shoot Angle", pitch)
-            wpilib.SmartDashboard.putNumber("Azimuth", yaw)
-            if self.jsManip.getRawButton(5):
-                self.articulateAngle = pitch
+        if self.jsManip.getPOV() == 90:
+            self.tomahawkSubsystem.set(config.tomahawkPower)
+        elif self.jsManip.getPOV() == 270:
+            self.tomahawkSubsystem.set(-config.tomahawkPower)
+        else:
+            self.tomahawkSubsystem.set(0)
 
+        # if self.jsManip.getRawButton(8):
+        #    self.seekCenterX = self.seekCenterX
+        # else:
         if self.jsManip.getRawButton(6):
             self.shooterSubsystem.kickerOn()
         else:
@@ -93,6 +102,8 @@ class TeleopCommand(Command):
             self.shooterSubsystem.intake()
         elif self.jsManip.getRawButton(4):
             self.shooterSubsystem.spinUpBatter()
+        elif self.jsManip.getRawButton(8):
+            self.seekCenterX = self.seekCenterX
         else:
             self.shooterSubsystem.idle()
 

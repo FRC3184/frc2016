@@ -53,7 +53,7 @@ class ShooterSubsystem(Subsystem):
 
         self.vArticulate = wpilib.VictorSP(1)
         self.articulateEncoder.setDistancePerPulse(
-            ((1024 if config.isPracticeBot else 1440)/(360*4)) * 1.5)  # Clicks per degree / Magic numbers
+            (1440/(360*4)) * 1.5)  # Clicks per degree / Magic numbers
         self.articulatePID = wpilib.PIDController(Kp=config.articulateKp, Ki=config.articulateKi, Kd=config.articulateKd,
                                                   source=self.getAngle,
                                                   output=self.updateArticulate)

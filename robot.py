@@ -5,13 +5,16 @@ import OrphanCommand
 # import soul
 
 from DataLogger import DataLogger
+from wpilib.buttons import JoystickButton
 from wpilib.command import Scheduler, CommandGroup
 from DriveSubsystem import DriveSubsystem
 from ShooterSubsystem import ShooterSubsystem
+from TomahawkSubsystem import TomahawkSubsystem
 from TeleopCommand import TeleopCommand
 from AutonomousCommand import AutonomousCommand
-from AutoDriveOverDefenseCommand import AutoDriveOverDefenseCommand
+from AutoDriveCommand import AutoDriveCommand
 from AutoTargetCommand import AutoTargetCommand
+from AutoChevalDeFriseCommand import AutoChevalDeFriseCommand
 
 
 class MyRobot(wpilib.IterativeRobot):
@@ -27,6 +30,7 @@ class MyRobot(wpilib.IterativeRobot):
 
         self.subsystems['drive'] = DriveSubsystem()
         self.subsystems['shooter'] = ShooterSubsystem(self)
+        self.subsystems['tomahawk'] = TomahawkSubsystem()
 
         self.teleopCommand = TeleopCommand(self)
         self.autonomousCommand = CommandGroup()
@@ -42,27 +46,21 @@ class MyRobot(wpilib.IterativeRobot):
 
         self.autoDefenseChooser = wpilib.SendableChooser()
         self.autoDefenseChooser.addDefault("Nothing", None)
-        self.autoDefenseChooser.addObject("Reach", AutoDriveOverDefenseCommand(self, power=.5, reach=True))
-        self.autoDefenseChooser.addObject("Rough Terrain", AutoDriveOverDefenseCommand(self, power=.7, dist=200,
-                                                                                       state=AutoDriveOverDefenseCommand
-                                                                                       .State.PAST_PLATFORM))
-        self.autoDefenseChooser.addObject("Rock Wall", AutoDriveOverDefenseCommand(self, power=.9, dist=200,
-                                                                                   holdpos=config.articulateAngleHigh,
-                                                                                   state=AutoDriveOverDefenseCommand
-                                                                                   .State.PAST_PLATFORM))
-        self.autoDefenseChooser.addObject("Moat", AutoDriveOverDefenseCommand(self, power=-.9, dist=270,
-                                                                              state=AutoDriveOverDefenseCommand
-                                                                              .State.PAST_PLATFORM))
-        self.autoDefenseChooser.addObject("Ramparts", AutoDriveOverDefenseCommand(self, power=-.7,
-                                                                                  dist=200,
-                                                                                  holdpos=config.articulateAngleHigh,
-                                                                                  state=AutoDriveOverDefenseCommand.State
-                                                                                  .PAST_PLATFORM))
-        self.autoDefenseChooser.addObject("Low Bar", AutoDriveOverDefenseCommand(self, power=.6,
-                                                                                 dist=200,
-                                                                                 holdpos=config.articulateAngleLow,
-                                                                                 state=AutoDriveOverDefenseCommand.State
-                                                                                 .PAST_PLATFORM))
+        self.autoDefenseChooser.addObject("Reach", AutoDriveCommand(self, power=.5, dist=100))
+        self.autoDefenseChooser.addObject("Rough Terrain", AutoDriveCommand(self, power=.7, dist=200))
+        self.autoDefenseChooser.addObject("Rock Wall", AutoDriveCommand(self, power=.9, dist=200,
+                                                                        holdpos=config.articulateAngleHigh))
+        self.autoDefenseChooser.addObject("Moat", AutoDriveCommand(self, power=-.9, dist=270))
+        self.autoDefenseChooser.addObject("Ramparts", AutoDriveCommand(self, power=-.7,
+                                                                       dist=200,
+                                                                       holdpos=config.articulateAngleHigh))
+        self.autoDefenseChooser.addObject("Low Bar", AutoDriveCommand(self, power=.6,
+                                                                      dist=200,
+                                                                      holdpos=config.articulateAngleLow))
+        self.autoDefenseChooser.addObject("Portcullis", AutoDriveCommand(self, power=.6,
+                                                                         dist=200,
+                                                                         holdpos=config.articulateAngleLow))
+        self.autoDefenseChooser.addObject("Cheval de Frise", AutoChevalDeFriseCommand(self))
 
         wpilib.SmartDashboard.putData("DefenseChooser", self.autoDefenseChooser)
 
@@ -72,6 +70,8 @@ class MyRobot(wpilib.IterativeRobot):
         self.autoActionChooser.addObject("Shoot", AutoTargetCommand(self, shoot=True))
 
         wpilib.SmartDashboard.putData("ActionChooser", self.autoActionChooser)
+
+        wpilib.SmartDashboard.putNumber("Aim at", 150)
 
         self.datalogger.ready()
 
@@ -85,7 +85,9 @@ class MyRobot(wpilib.IterativeRobot):
 
     def teleopInit(self):
         self.autonomousCommand.cancel()
-        self.teleopCommand.start()
+        self.jsAutoTargetButton = JoystickButton(wpilib.Joystick(2), 8)
+        self.jsAutoTargetButton.whenPressed(AutoTargetCommand(self))
+        self.jsAutoTargetButton.whenReleased(self.teleopCommand)
 
     def autonomousInit(self):
         defense = self.autoDefenseChooser.getSelected()

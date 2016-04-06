@@ -5,29 +5,27 @@ from wpilib.interfaces import PIDSource
 from OrphanCommand import OrphanCommand
 
 
-class AutoDriveOverDefenseCommand(OrphanCommand):
+class AutoDriveCommand(OrphanCommand):
     def isFinished(self):
         return False
 
     class State:
-        NOT_HIT_PLATFORM = 0
-        ON_PLATFORM = 1
-        PAST_PLATFORM = 2
+        DRIVING = 0
         DONE = 10
 
-    def __init__(self, robot, power=.7, dist=(3*12), holdpos=config.articulateAngleHigh, reach=False,
-                 state=State.NOT_HIT_PLATFORM, delay=0):
+    def __init__(self, robot, power=.7, dist=(3*12), holdpos=config.articulateAngleHigh,
+                 delay=0):
         super().__init__()
 
         self.requires(robot.subsystems['drive'])
         self.requires(robot.subsystems['shooter'])
         self.driveSubystem = robot.subsystems['drive']
         self.shooterSubsystem = robot.subsystems['shooter']
+        self.timer = wpilib.Timer()
+        self.timerStarted = 0
 
         self.isFinished = lambda: False
-        self.reach = reach
         self.turnPow = 0
-        self.currentState = state
         self.drivePower = power
         self.dist = dist
         self.holdpos = holdpos
@@ -45,8 +43,6 @@ class AutoDriveOverDefenseCommand(OrphanCommand):
     def execute(self):
         wpilib.SmartDashboard.putNumber("Auto State", self.currentState)
 
-        anglePitch = self.driveSubystem.gyro.getAngleY()
-
         self.shooterSubsystem.idle()
         self.driveSubystem.updateSmartDashboardValues()
         self.shooterSubsystem.updateSmartDashboardValues()
@@ -56,25 +52,11 @@ class AutoDriveOverDefenseCommand(OrphanCommand):
             self.driveSubystem.drive(0, 0)
             return None
 
-        if self.currentState is self.State.NOT_HIT_PLATFORM:
-            self.driveSubystem.drive(self.drivePower, 0)
-
-            if anglePitch > 10:
-                self.currentState = (self.State.ON_PLATFORM if not self.reach else self.State.DONE)
-                #self.driveSubystem.gyro.angleY = 0
-
-        elif self.currentState is self.State.ON_PLATFORM:
-            self.driveSubystem.drive(self.drivePower, 0)
-
-            if anglePitch < -10:
-                self.currentState = self.State.PAST_PLATFORM
-                self.driveSubystem.resetEncoderCount()
-
-        elif self.currentState is self.State.PAST_PLATFORM:
+        if self.currentState is self.State.DRIVING:
             self.driveSubystem.drive(self.drivePower, 0)
 
             if abs(self.driveSubystem.getLeftEncoderCount()) > self.dist or \
-               abs(self.driveSubystem.getRightEncoderCount()) > self.dist:
+                abs(self.driveSubystem.getRightEncoderCount()) > self.dist:
                 self.currentState = self.State.DONE
 
         elif self.currentState is self.State.DONE:

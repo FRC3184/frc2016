@@ -1,5 +1,7 @@
-isPracticeBot = False
+isPracticeBot = True
 useTurnCorrect = False
+
+tomahawkPower = .4
 
 articulateAngleLow = -15
 articulateAngleHigh = 108
