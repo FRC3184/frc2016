@@ -48,17 +48,21 @@ def calculateShooterParams(armAngle):
     dy = (config.image_height / 2) - largest.centerY
 
     # Calculations taken from TowerTracker
+    y = largest.centerY + largest.height / 2.0
+    y = -((2*(y/config.image_height))-1)
+    distance = (config.center_target_height - calculateCameraHeight(armAngle)) / \
+               (math.tan(math.radians(y * config.vertical_fov / 2.0 + calculateCameraAngle(armAngle))))
 
     x = largest.centerX
     x = (2 * (x / config.image_width))
     azimuth = (x*config.horiz_fov / 2.0) - 30
 
     dist = distanceFromTower(largest.width)
-    return trigShootAngle(armAngle, dist), azimuth, dist, largest.centerX, 0
+    return trigShootAngle(armAngle, dist)+12, azimuth, dist, largest.centerX
 
 
 def trigShootAngle(armAngle, dist):
-    u = config.arm_len_to_camera * math.degrees(math.sin(armAngle))
+    u = config.arm_len_to_camera * math.sin(math.radians(armAngle))
     return math.degrees(math.atan2(config.center_target_height - config.arm_height - u, dist))
 
 

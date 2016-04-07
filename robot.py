@@ -34,6 +34,7 @@ class MyRobot(wpilib.IterativeRobot):
 
         self.teleopCommand = TeleopCommand(self)
         self.autonomousCommand = CommandGroup()
+        self.autonomousCommand.setTimeout(15)
 
         self.autoPositionChooser = wpilib.SendableChooser()
         self.autoPositionChooser.addDefault("Position 1", 1)
@@ -85,9 +86,11 @@ class MyRobot(wpilib.IterativeRobot):
 
     def teleopInit(self):
         self.autonomousCommand.cancel()
+
         self.jsAutoTargetButton = JoystickButton(wpilib.Joystick(2), 8)
-        self.jsAutoTargetButton.whenPressed(AutoTargetCommand(self))
-        self.jsAutoTargetButton.whenReleased(self.teleopCommand)
+        self.autoTargetCommand = AutoTargetCommand(self)
+        self.teleopCommand.start()
+        self.autoTargetCommand.start()
 
     def autonomousInit(self):
         defense = self.autoDefenseChooser.getSelected()

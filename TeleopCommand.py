@@ -21,6 +21,7 @@ class TeleopCommand(Command):
 
         subsystems = robot.subsystems
         self.pdp = robot.pdp
+        self.toCancel = None
 
         self.requires(subsystems['drive'])
         self.requires(subsystems['shooter'])
@@ -48,6 +49,9 @@ class TeleopCommand(Command):
     def execute(self):
         super().execute()
 
+        if not wpilib.DriverStation.getInstance().isOperatorControl() or self.jsManip.getRawButton(8):
+            return None
+
         self.oneeightycd += 20/1000
 
         safePowerScale = 1.0
@@ -73,9 +77,9 @@ class TeleopCommand(Command):
         elif self.jsManip.getRawButton(10):
             self.articulateAngle = config.articulateAngleLow
 
-        if self.jsManip.getPOV() == 90:
+        if self.jsManip.getPOV() == 0:
             self.tomahawkSubsystem.set(config.tomahawkPower)
-        elif self.jsManip.getPOV() == 270:
+        elif self.jsManip.getPOV() == 180:
             self.tomahawkSubsystem.set(-config.tomahawkPower)
         else:
             self.tomahawkSubsystem.set(0)
@@ -115,10 +119,17 @@ class TeleopCommand(Command):
 
         self.shooterSubsystem.setArticulateAngle(self.articulateAngle)
 
-        wpilib.SmartDashboard.putDouble("Arm current", self.pdp.getCurrent(1))
+        k = vision.calculateShooterParams(self.shooterSubsystem.getAngle())
+        if k is not None:
+            wpilib.SmartDashboard.putNumber("Shoot Angle", k[0])
+            wpilib.SmartDashboard.putNumber("Distance From Tower", k[2])
 
         self.shooterSubsystem.updateSmartDashboardValues()
         self.driveSubsystem.updateSmartDashboardValues()
 
     def end(self):
         print("Finished Teleop Command")
+
+    def setToCancel(self, command):
+        self.toCancel = command
+        pass

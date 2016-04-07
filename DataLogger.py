@@ -19,7 +19,7 @@ class DataLogger:
     def ready(self):
         self.isReady = True
         print("[Status] Time", file=self.logfile, end="")
-        for k, _ in self.dataSources:
+        for k, _ in self.dataSources.items():
             print(", {}".format(k), end="", file=self.logfile)
         print(file=self.logfile)
 
@@ -27,7 +27,7 @@ class DataLogger:
         if not self.isReady:
             return None
         print("[Data] {}".format(self.curtime()), end="", file=self.logfile)
-        for _, v in self.dataSources:
+        for _, v in self.dataSources.items():
             print(", {}".format(v()), end="", file=self.logfile)
         print(file=self.logfile)
 
