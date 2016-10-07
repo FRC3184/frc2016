@@ -54,10 +54,6 @@ class TeleopCommand(Command):
 
         self.oneeightycd += 20/1000
 
-        safePowerScale = 1.0
-        if wpilib.DriverStation.getInstance().isBrownedOut():
-            safePowerScale = .7
-
         spencerPow = 1.0 if (self.jsLeft.getRawButton(1) or self.jsRight.getRawButton(1)) else 0.75
 
         power = self.jsLeft.getY()**3 * spencerPow
@@ -84,9 +80,6 @@ class TeleopCommand(Command):
         else:
             self.tomahawkSubsystem.set(0)
 
-        # if self.jsManip.getRawButton(8):
-        #    self.seekCenterX = self.seekCenterX
-        # else:
         if self.jsManip.getRawButton(6):
             self.shooterSubsystem.kickerOn()
         else:

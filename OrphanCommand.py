@@ -1,7 +1,6 @@
 from wpilib.command import Command
 
 
-# def killParents(cmd):
 def wrapWithOrphan(cmd):
     if OrphanCommand not in cmd.__bases__:
         if Command in cmd.__bases__:

@@ -78,6 +78,10 @@ class ShooterSubsystem(Subsystem):
         self.datalogger.add_data_source("Articulate Angle", self.getAngle)
 
     def updateArticulate(self, articulatePow):
+        """
+        Used as an output for the arm PID loop. Checks limit switches before outputting power.
+        :param articulatePow: power: -1..1
+        """
         current = self.pdp.getCurrent(1)  # Channel for test bot
         self.armCurrentValues += [current]
         self.armCurrentValues = self.armCurrentValues[1:]
@@ -102,22 +106,32 @@ class ShooterSubsystem(Subsystem):
             self.vArticulate.set(articulatePow)
 
     def kickerOn(self):
+        """
+        Set the kicker servo to on state
+        """
         self.sKicker.set(.3 if not config.isPracticeBot else 0)
         if not self.lastKicker:
             self.datalogger.event("Fire!")
         self.lastKicker = True
 
     def kickerOff(self):
+        """
+        Set the kicker servo to idle state
+        """
         self.sKicker.set(.6 if not config.isPracticeBot else .3)
         self.lastKicker = False
 
     def updateSmartDashboardValues(self):
+        """
+        Update the SmartDashboard values
+        """
+        present_status = wpilib.CANTalon.FeedbackDeviceStatus.Present
         wpilib.SmartDashboard.putBoolean("Right Shooter Encoder present",
                                          self.tShooterR.isSensorPresent(self.shooterEncoderType) ==
-                                         wpilib.CANTalon.FeedbackDeviceStatus.Present)
+                                         present_status)
         wpilib.SmartDashboard.putBoolean("Left Shooter Encoder present",
                                          self.tShooterL.isSensorPresent(self.shooterEncoderType) ==
-                                         wpilib.CANTalon.FeedbackDeviceStatus.Present)
+                                         present_status)
 
         wpilib.SmartDashboard.putDouble("Left Shooter Speed", self.tShooterL.getSpeed())
         wpilib.SmartDashboard.putDouble("Right Shooter Speed", self.tShooterR.getSpeed())
@@ -126,7 +140,8 @@ class ShooterSubsystem(Subsystem):
         wpilib.SmartDashboard.putNumber("Articulate Set Angle", self.articulatePID.getSetpoint())
 
     def setPower(self, power):
-        """Set shooter raw power
+        """
+        Set shooter raw power
         :param power: Raw motor power -1 .. 1
         """
         if self.shooterLPID.enabled:
@@ -138,6 +153,10 @@ class ShooterSubsystem(Subsystem):
         self.tShooterR.set(power)
 
     def setVelocity(self, vel):
+        """
+        Use PID control to set shooter speed
+        :param vel: The velocity setpoint, in RPM
+        """
         self.shooterLPID.enable()
         self.shooterRPID.enable()
 
@@ -145,24 +164,36 @@ class ShooterSubsystem(Subsystem):
         self.shooterRPID.setSetpoint(vel)
 
     def spinUpBatter(self):
+        """
+        SpinUp at a lower speed, tuned for the batter shot
+        """
         self.setVelocity(config.batterShootSpeed)
 
     def spinUp(self):
+        """
+        SpinUp State
+        """
         self.setVelocity(config.shootSpeed)
 
     def eject(self):
+        """
+        Eject state
+        """
         self.setPower(0.6)
-        intakeBarPow = 1.0 * (-1 if config.isPracticeBot else 1)
-
-        self.vIntake.set(intakeBarPow)
+        self.vIntake.set(config.intake_bar_pow)
 
     def intake(self):
-        intakeBarPow = -1.0 * (-1 if config.isPracticeBot else 1)
-
-        self.setPower(-0.6)
-        self.vIntake.set(intakeBarPow)
+        """
+        Intake state
+        """
+        self.setPower(-1 * config.shooter_intake_pow)
+        self.vIntake.set(-1 * config.intake_bar_pow)
 
     def idle(self):
+        """
+        Shooter idle state
+        Set shooter to 0
+        """
         self.shooterLPID.disable()
         self.shooterRPID.disable()
         self.vIntake.set(0)
@@ -172,16 +203,28 @@ class ShooterSubsystem(Subsystem):
     def setArticulateAngle(self, angle):
         """
         Translate angle in degrees to encoder clicks and update PID
-        :param angle: -15 .. 105
-        :return:
+        :param angle: degrees: -15 .. 105
         """
         self.articulatePID.setSetpoint(angle)
 
     def getAngle(self):
+        """
+        Get the angle of the shooter arm, as reported by the encoder
+        :return: The angle in degrees of the shooter arm
+        """
         return self.articulateEncoder.getDistance()+self.angleOffset
 
     def isHittingLow(self):
+        """
+        Bottom arm limit switch state
+        :return: Whether the arm is at the bottom of its arc
+        """
         return not self.limLow.get()
 
     def isHittingHigh(self):
+        """
+        Top arm limit switch state
+        :return: Whether the arm is at the top of its arc
+        """
+        # The switch on the practice bot has opposite configuration (NC vs NO)
         return (self.limHigh.get()) if config.isPracticeBot else (not self.limHigh.get())

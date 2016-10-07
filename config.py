@@ -2,6 +2,8 @@ isPracticeBot = True
 useTurnCorrect = False
 
 tomahawkPower = .4
+shooter_intake_pow = .6
+intake_bar_pow = 1.0 * (-1 if isPracticeBot else 1)
 
 articulateAngleLow = -15
 articulateAngleHigh = 108
